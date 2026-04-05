@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#27ae60">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Control Víveres">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIj48cmVjdCB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgcng9IjMyIiBmaWxsPSIjMjdhZTYwIi8+PHRleHQgeD0iOTYiIHk9IjEyMCIgZm9udC1zaXplPSI5NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfk6Y8L3RleHQ+PC9zdmc+">
+    <title>Control de Víveres - Firebase Pro</title>
+    <style>
+        :root {
+            --primary: #27ae60;
+            --secondary: #f39c12;
+            --danger: #e74c3c;
+            --warning: #e67e22;
+            --info: #3498db;
+            --bg: #f4f7f6;
+            --card: #ffffff;
+            --text: #2c3e50;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; }
+        body { background-color: var(--bg); margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .app-card { background: var(--card); width: 100%; max-width: 500px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .header-info { background: linear-gradient(135deg, var(--primary), var(--info)); color: white; padding: 15px; border-radius: 15px; margin-bottom: 20px; text-align: center; cursor: pointer; }
+        .header-info h2 { margin: 0 0 10px 0; font-size: 1.2rem; }
+        .header-info p { margin: 5px 0; font-size: 0.9rem; }
+        .status-badge { display: inline-block; background: rgba(255,255,255,0.3); padding: 5px 15px; border-radius: 20px; font-size: 0.85rem; margin-top: 10px; }
+        .status-badge.abierto { background: #27ae60; }
+        .status-badge.cerrado { background: #e74c3c; }
+        .connection-status { display: inline-block; margin-left: 10px; font-size: 0.75rem; padding: 3px 8px; border-radius: 10px; color: white; }
+        .connection-status.online { background: #2ecc71; }
+        .connection-status.offline { background: #e74c3c; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #eee; overflow-x: auto; padding-bottom: 5px; }
+        .tab-btn { background: none; border: none; padding: 10px 15px; cursor: pointer; font-weight: 600; color: #999; border-bottom: 3px solid transparent; transition: all 0.3s; white-space: nowrap; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        h2 { color: var(--text); font-size: 1.1rem; margin-top: 20px; margin-bottom: 15px; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; outline: none; transition: border-color 0.3s; }
+        input:focus, select:focus { border-color: var(--primary); }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        button { border: none; padding: 12px; border-radius: 10px; color: white; font-weight: bold; cursor: pointer; font-size: 0.85rem; transition: all 0.3s; }
+        button:active { transform: scale(0.95); }
+        .btn-add { background: var(--primary); }
+        .btn-vender { background: var(--secondary); }
+        .btn-danger { background: var(--danger); }
+        .btn-info { background: var(--info); }
+        .list-container { margin-top: 20px; max-height: 400px; overflow-y: auto; }
+        .item { background: #f9f9f9; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid var(--primary); }
+        .item.alert { border-left-color: var(--danger); background: #fff5f5; }
+        .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .item-name { font-weight: bold; color: var(--text); }
+        .item-quantity { background: var(--primary); color: white; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; }
+        .stats-box { background: #f9f9f9; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--info); }
+        .stats-label { font-size: 0.85rem; color: #666; margin-bottom: 5px; }
+        .stats-value { font-size: 1.4rem; font-weight: bold; color: var(--info); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 20px; border-radius: 15px; max-width: 450px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
+        .search-input { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; outline: none; margin-bottom: 10px; }
+        .search-results { max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 10px; margin-bottom: 15px; }
+        .search-result-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .search-result-item:hover { background: #f0f0f0; }
+        .falla-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: white; }
+        .agotado { background: #e74c3c; }
+        .bajo { background: #f39c12; }
+        .credito-item { border-left-color: #9b59b6; background: #fcf3ff; }
+        .total-section { background: var(--primary); color: white; padding: 15px; border-radius: 15px; text-align: center; margin-top: 15px; }
+        .total-amount { font-size: 1.8rem; font-weight: bold; }
+        .config-section { background: #f0f0f0; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #3498db; }
+        .credito-badge { background: #9b59b6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
+        
+        /* Botones +/- y Edición */
+        .qty-controls { display: flex; align-items: center; gap: 8px; }
+        .btn-qty { width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; background: #eee; color: #333; border-radius: 5px; }
+        .btn-qty:active { background: #ddd; }
+        .qty-num { font-weight: bold; min-width: 25px; text-align: center; }
+        .btn-add-search { background: var(--secondary); padding: 5px 10px; font-size: 0.7rem; }
+        .item-actions { display: flex; gap: 5px; margin-top: 10px; }
+        .btn-edit { background: var(--info); padding: 5px 10px; font-size: 0.75rem; }
+        .btn-delete { background: var(--danger); padding: 5px 10px; font-size: 0.75rem; }
+        .costo-preview { font-size: 0.75rem; color: var(--info); margin-top: 4px; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="app-card">
+    <div class="header-info" onclick="toggleConfig()">
+        <h2>📦 Control de Víveres - Firebase Pro</h2>
+        <p id="fechaActual"></p>
+        <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
+            <div class="status-badge" id="statusBadge">ABIERTO</div>
+            <div class="connection-status" id="connectionStatus">🔴 Local</div>
+        </div>
+        <div style="font-size:0.6rem; opacity:0.8; margin-top:5px;">(Toca aquí para configurar)</div>
+    </div>
+
+    <div class="config-section" id="configSection">
+        <h3>⚙️ Configuración Firebase</h3>
+        <p style="font-size:0.7rem; color:#666; margin-bottom:10px;">Ingresa tus llaves para sincronizar con la nube:</p>
+        <input type="text" id="projectId" placeholder="Project ID" style="margin-bottom:10px;">
+        <input type="password" id="apiKey" placeholder="API Key" style="margin-bottom:10px;">
+        <div class="btn-grid">
+            <button class="btn-add" onclick="conectarFirebase()" style="width: 100%;">CONECTAR</button>
+            <button class="btn-danger" onclick="toggleConfig()" style="width: 100%;">CERRAR</button>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('inventario')">📦 Stock</button>
+        <button class="tab-btn" onclick="switchTab('ventas')">🛒 Venta</button>
+        <button class="tab-btn" onclick="switchTab('creditos')">💳 Créditos</button>
+        <button class="tab-btn" onclick="switchTab('reportes')">📊 Reportes</button>
+    </div>
+
+    <!-- TAB: INVENTARIO -->
+    <div id="inventario" class="tab-content active">
+        <div class="input-row" style="display:flex; gap:10px;">
+            <div class="input-group" style="flex:1;">
+                <label>Tasa Dólar (BCV)</label>
+                <input type="number" id="tasa" step="0.01" onchange="actualizarTasa()">
+            </div>
+            <div class="input-group" style="flex:1;">
+                <label>Alerta Stock</label>
+                <input type="number" id="stockMinimo" value="5" onchange="render()">
+            </div>
+        </div>
+
+        <h2 id="formTitle">➕ Cargar Producto</h2>
+        <input type="hidden" id="editId">
+        <input type="text" id="nombre" placeholder="Nombre del producto" class="search-input">
+        
+        <div class="input-row" style="display:flex; gap:10px; margin-bottom:10px; align-items: flex-end;">
+            <div style="flex:2;">
+                <label>Costo de Compra</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="number" id="costo" placeholder="0.00" step="0.01" oninput="calcularCostoDual()">
+                    <select id="monedaCosto" style="width:70px; padding:10px;" onchange="calcularCostoDual()">
+                        <option value="BS">Bs</option>
+                        <option value="USD">$</option>
+                    </select>
+                </div>
+                <div id="costoDual" class="costo-preview">Eqv: $ 0.00</div>
+            </div>
+            <div style="flex:1;">
+                <label>Beneficio %</label>
+                <input type="number" id="beneficio" value="30" placeholder="30">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label>Cantidad a Ingresar</label>
+            <input type="number" id="cantidad" placeholder="Cantidad" value="1">
+        </div>
+
+        <div class="btn-grid">
+            <button class="btn-add" id="btnGuardar" onclick="addItem()">CARGAR AL INVENTARIO</button>
+            <button class="btn-danger" id="btnCancelarEdit" onclick="limpiarForm()" style="display:none;">CANCELAR</button>
+        </div>
+
+        <h2>📦 Inventario Actual</h2>
+        <input type="text" id="filtroStock" class="search-input" placeholder="🔍 Buscar en Stock..." oninput="render()">
+        <div id="lista" class="list-container"></div>
+        
+        <div class="total-section">
+            <div style="font-size:0.8rem; opacity:0.9;">VALOR TOTAL INVENTARIO</div>
+            <div class="total-amount" id="totalDisplay">Bs. 0.00</div>
+        </div>
+    </div>
+
+    <!-- TAB: VENTAS -->
+    <div id="ventas" class="tab-content">
+        <input type="text" id="busquedaProducto" class="search-input" placeholder="🔍 Buscar producto..." oninput="buscarVenta()">
+        <div id="searchResults" class="search-results"></div>
+
+        <div id="carritoContainer" class="list-container">
+            <div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>
+        </div>
+
+        <div class="total-section">
+            <div style="font-size:0.8rem; opacity:0.9;">TOTAL A PAGAR</div>
+            <div class="total-amount" id="totalCarrito">Bs. 0.00</div>
+        </div>
+
+        <div class="btn-grid">
+            <button class="btn-vender" onclick="finalizarVenta(false)">✅ VENTA CONTADO</button>
+            <button class="btn-info" onclick="abrirModalCredito()">💳 DAR CRÉDITO</button>
+        </div>
+        <button class="btn-danger" onclick="limpiarCarrito()" style="width:100%; margin-top:10px;">🗑️ LIMPIAR CARRITO</button>
+
+        <h2>📝 Ventas de Hoy</h2>
+        <div id="ventasHistorial" class="list-container"></div>
+    </div>
+
+    <!-- TAB: CRÉDITOS -->
+    <div id="creditos" class="tab-content">
+        <h2>👥 Clientes con Deuda</h2>
+        <div id="listaCreditos" class="list-container"></div>
+    </div>
+
+    <!-- TAB: REPORTES -->
+    <div id="reportes" class="tab-content">
+        <div class="stats-box" style="border-left-color: #e74c3c;">
+            <div class="stats-label">⚠️ PRODUCTOS EN FALLA</div>
+            <div id="reporteFallas" style="font-size:0.85rem; margin-top:10px;"></div>
+        </div>
+
+        <div class="stats-box">
+            <div class="stats-label">TOTAL INGRESOS HOY</div>
+            <div class="stats-value" id="ingresosTotales">Bs. 0.00</div>
+        </div>
+
+        <div class="stats-box" style="border-left-color: #27ae60;">
+            <div class="stats-label">GANANCIA ESTIMADA HOY</div>
+            <div class="stats-value" id="gananciaEstimada">Bs. 0.00</div>
+        </div>
+
+        <div class="stats-box" style="border-left-color: #9b59b6;">
+            <div class="stats-label">TOTAL EN CRÉDITOS PENDIENTES</div>
+            <div class="stats-value" id="totalCreditos">Bs. 0.00</div>
+        </div>
+
+        <button class="btn-info" onclick="descargarReporte()" style="width:100%;">📥 DESCARGAR REPORTE COMPLETO</button>
+        <button class="btn-danger" onclick="cerrarDia()" style="width:100%; margin-top:10px;">🔒 CERRAR DÍA</button>
+    </div>
+</div>
+
+<!-- MODAL CRÉDITO -->
+<div id="modalCredito" class="modal">
+    <div class="modal-content">
+        <h3>💳 Registrar Crédito (Fiado)</h3>
+        <div class="input-group">
+            <label>Nombre del Cliente:</label>
+            <input type="text" id="nombreCliente" placeholder="Ej: Juan Perez">
+        </div>
+        <div class="stats-box">
+            <div class="stats-label">Monto a Deber:</div>
+            <div class="stats-value" id="montoCredito">Bs. 0.00</div>
+        </div>
+        <div class="btn-grid">
+            <button class="btn-add" onclick="finalizarVenta(true)">CONFIRMAR CRÉDITO</button>
+            <button class="btn-danger" onclick="cerrarModalCredito()">CANCELAR</button>
+        </div>
+    </div>
+</div>
+
+<!-- Firebase SDK v8 (Compatibilidad total) -->
+<script src="https://www.gstatic.com/firebasejs/8.8.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.8.1/firebase-database.js"></script>
+
+<script>
+    // Variables
+    let items = [], ventas = [], creditos = [], carrito = [];
+    let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES');
+    let db = null, firebaseConnected = false;
+
+    // Inicializar
+    function init() {
+        items = JSON.parse(localStorage.getItem('v_items')) || [];
+        ventas = JSON.parse(localStorage.getItem('v_ventas')) || [];
+        creditos = JSON.parse(localStorage.getItem('v_creditos')) || [];
+        tasaDolar = parseFloat(localStorage.getItem('v_tasa')) || 36.50;
+        document.getElementById('tasa').value = tasaDolar;
+        document.getElementById('fechaActual').textContent = diaActual;
+        
+        const config = localStorage.getItem('fb_config');
+        if(config) {
+            const c = JSON.parse(config);
+            document.getElementById('projectId').value = c.projectId;
+            document.getElementById('apiKey').value = c.apiKey;
+            document.getElementById('configSection').style.display = 'none';
+            conectarFirebase();
+        } else {
+            document.getElementById('configSection').style.display = 'block';
+        }
+        render();
+    }
+
+    function toggleConfig() {
+        const sec = document.getElementById('configSection');
+        sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function conectarFirebase() {
+        const projectId = document.getElementById('projectId').value.trim();
+        const apiKey = document.getElementById('apiKey').value.trim();
+        if(!projectId || !apiKey) return alert('Por favor ingresa el Project ID y la API Key');
+
+        try {
+            const firebaseConfig = {
+                apiKey: apiKey,
+                projectId: projectId,
+                databaseURL: `https://${projectId}-default-rtdb.firebaseio.com`
+            };
+            if (firebase.apps.length) {
+                firebase.app().delete().then(() => {
+                    iniciarFirebase(firebaseConfig, projectId, apiKey);
+                });
+            } else {
+                iniciarFirebase(firebaseConfig, projectId, apiKey);
+            }
+        } catch(e) { alert('Error Firebase: ' + e.message); }
+    }
+
+    function iniciarFirebase(config, projectId, apiKey) {
+        firebase.initializeApp(config);
+        db = firebase.database();
+        localStorage.setItem('fb_config', JSON.stringify({projectId, apiKey}));
+        
+        db.ref('viveres_pro/data').on('value', snap => {
+            const data = snap.val();
+            if(data) {
+                // Solo actualizamos si hay datos reales en la nube
+                if(data.items) items = data.items;
+                if(data.ventas) ventas = data.ventas;
+                if(data.creditos) creditos = data.creditos;
+                if(data.tasa) tasaDolar = data.tasa;
+                document.getElementById('tasa').value = tasaDolar;
+                render();
+            } else {
+                // Si la nube está vacía, subimos lo que tenemos localmente
+                sync();
+            }
+        });
+        firebaseConnected = true;
+        document.getElementById('connectionStatus').textContent = '🟢 Sincronizado';
+        document.getElementById('connectionStatus').className = 'connection-status online';
+        document.getElementById('configSection').style.display = 'none';
+        alert('¡Conectado exitosamente!');
+    }
+
+    function sync() {
+        localStorage.setItem('v_items', JSON.stringify(items));
+        localStorage.setItem('v_ventas', JSON.stringify(ventas));
+        localStorage.setItem('v_creditos', JSON.stringify(creditos));
+        localStorage.setItem('v_tasa', tasaDolar);
+        if(firebaseConnected && db) {
+            db.ref('viveres_pro/data').set({ items, ventas, creditos, tasa: tasaDolar });
+        }
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tab).classList.add('active');
+        if(event && event.target) event.target.classList.add('active');
+        render();
+    }
+
+    function actualizarTasa() {
+        tasaDolar = parseFloat(document.getElementById('tasa').value) || 36.50;
+        sync();
+        render();
+    }
+
+    function calcularCostoDual() {
+        const val = parseFloat(document.getElementById('costo').value) || 0;
+        const mon = document.getElementById('monedaCosto').value;
+        const preview = document.getElementById('costoDual');
+        if(mon === 'USD') {
+            preview.textContent = `Eqv: Bs. ${(val * tasaDolar).toFixed(2)}`;
+        } else {
+            preview.textContent = `Eqv: $ ${(val / tasaDolar).toFixed(2)}`;
+        }
+    }
+
+    function addItem() {
+        const n = document.getElementById('nombre').value.trim();
+        let c = parseFloat(document.getElementById('costo').value);
+        const mon = document.getElementById('monedaCosto').value;
+        const b = parseFloat(document.getElementById('beneficio').value);
+        const q = parseInt(document.getElementById('cantidad').value);
+        const editId = document.getElementById('editId').value;
+        
+        if(!n || isNaN(c) || isNaN(q)) return alert('Datos incompletos');
+
+        if(mon === 'BS') c = c / tasaDolar;
+        const pV = c * (1 + b/100);
+        
+        if(editId) {
+            const idx = items.findIndex(i => i.id == editId);
+            if(idx !== -1) {
+                items[idx] = { ...items[idx], nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q };
+            }
+        } else {
+            const ex = items.find(i => i.nombre.toLowerCase() === n.toLowerCase());
+            if(ex) {
+                ex.cantidad += q; ex.costo = c; ex.beneficio = b; ex.precioVenta = pV;
+            } else {
+                items.push({ id: Date.now(), nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q });
+            }
+        }
+        
+        limpiarForm();
+        sync(); render();
+    }
+
+    function editarItem(id) {
+        const i = items.find(x => x.id == id);
+        if(!i) return;
+        
+        document.getElementById('formTitle').textContent = '✏️ Editar Producto';
+        document.getElementById('editId').value = i.id;
+        document.getElementById('nombre').value = i.nombre;
+        document.getElementById('costo').value = (i.costo * tasaDolar).toFixed(2);
+        document.getElementById('monedaCosto').value = 'BS';
+        document.getElementById('beneficio').value = i.beneficio;
+        document.getElementById('cantidad').value = i.cantidad;
+        
+        document.getElementById('btnGuardar').textContent = 'GUARDAR CAMBIOS';
+        document.getElementById('btnCancelarEdit').style.display = 'block';
+        calcularCostoDual();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function eliminarItem(id) {
+        if(confirm('¿Seguro que deseas eliminar este producto permanentemente?')) {
+            items = items.filter(x => x.id != id);
+            sync(); render();
+        }
+    }
+
+    function limpiarForm() {
+        document.getElementById('formTitle').textContent = '➕ Cargar Producto';
+        document.getElementById('editId').value = '';
+        document.getElementById('nombre').value = '';
+        document.getElementById('costo').value = '';
+        document.getElementById('monedaCosto').value = 'BS';
+        document.getElementById('beneficio').value = '30';
+        document.getElementById('cantidad').value = '1';
+        document.getElementById('btnGuardar').textContent = 'CARGAR AL INVENTARIO';
+        document.getElementById('btnCancelarEdit').style.display = 'none';
+        document.getElementById('costoDual').textContent = 'Eqv: $ 0.00';
+    }
+
+    function render() {
+        const lista = document.getElementById('lista');
+        const stockMin = parseInt(document.getElementById('stockMinimo').value) || 5;
+        const filtro = document.getElementById('filtroStock').value.toLowerCase();
+        
+        let totalInv = 0;
+        const itemsFiltrados = items.filter(i => i.nombre.toLowerCase().includes(filtro));
+        
+        lista.innerHTML = itemsFiltrados.map(i => {
+            const sub = i.precioVenta * i.cantidad * tasaDolar;
+            totalInv += sub;
+            return `<div class="item ${i.cantidad <= stockMin ? 'alert' : ''}">
+                <div class="item-header">
+                    <span class="item-name">${i.nombre}</span>
+                    <span class="item-quantity">${i.cantidad}</span>
+                </div>
+                <div style="font-size:0.8rem; color:#666;">Precio: Bs. ${(i.precioVenta * tasaDolar).toFixed(2)} ($${i.precioVenta.toFixed(2)})</div>
+                <div class="item-actions">
+                    <button class="btn-edit" onclick="editarItem(${i.id})">✏️ EDITAR</button>
+                    <button class="btn-delete" onclick="eliminarItem(${i.id})">🗑️ ELIMINAR</button>
+                </div>
+            </div>`;
+        }).join('');
+        document.getElementById('totalDisplay').textContent = 'Bs. ' + totalInv.toFixed(2);
+
+        renderCarrito();
+        const fallas = items.filter(i => i.cantidad <= stockMin);
+        document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => 
+            `<div>• ${f.nombre}: <b>${f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`
+        ).join('') : 'No hay fallas';
+
+        const vHoy = ventas.filter(v => v.dia === diaActual);
+        let ing = 0, gan = 0;
+        vHoy.forEach(v => { ing += (parseFloat(v.total) || 0); gan += (parseFloat(v.ganancia) || 0); });
+        document.getElementById('ingresosTotales').textContent = 'Bs. ' + ing.toFixed(2);
+        document.getElementById('gananciaEstimada').textContent = 'Bs. ' + gan.toFixed(2);
+        document.getElementById('ventasHistorial').innerHTML = vHoy.reverse().map(v => 
+            `<div class="item ${v.tipo=='credito'?'credito-item':''}">
+                <div class="item-header"><b>${v.producto}</b> <span>Bs. ${v.total.toFixed(2)}</span></div>
+                <div style="font-size:0.75rem;">${v.hora} | ${v.tipo=='credito'?'💳 FIADO':'💵 CONTADO'}</div>
+            </div>`
+        ).join('');
+
+        let totalC = 0;
+        document.getElementById('listaCreditos').innerHTML = creditos.length ? creditos.map((c, idx) => {
+            totalC += (parseFloat(c.monto) || 0);
+            return `<div class="item credito-item">
+                <div class="item-header"><b>${c.cliente}</b> <span class="credito-badge">Bs. ${c.monto.toFixed(2)}</span></div>
+                <div style="font-size:0.8rem; margin-bottom:8px;">${c.detalle} (${c.fecha})</div>
+                <button class="btn-add" onclick="pagarCredito(${idx})" style="padding:5px 10px; font-size:0.7rem;">MARCAR COMO PAGADO</button>
+            </div>`;
+        }).join('') : '<div style="text-align:center; color:#999; padding:20px;">No hay deudas pendientes</div>';
+        document.getElementById('totalCreditos').textContent = 'Bs. ' + totalC.toFixed(2);
+    }
+
+    function buscarVenta() {
+        const q = document.getElementById('busquedaProducto').value.toLowerCase();
+        const res = document.getElementById('searchResults');
+        if(!q) return res.innerHTML = '';
+        const found = items.filter(i => i.nombre.toLowerCase().includes(q) && i.cantidad > 0);
+        res.innerHTML = found.map(i => `
+            <div class="search-result-item">
+                <div>
+                    <b>${i.nombre}</b><br>
+                    <span style="font-size:0.75rem; color:#666;">Bs. ${(i.precioVenta * tasaDolar).toFixed(2)} (Stock: ${i.cantidad})</span>
+                </div>
+                <button class="btn-add-search" onclick="addCarrito(${i.id})">AÑADIR</button>
+            </div>
+        `).join('');
+    }
+
+    function addCarrito(id) {
+        const i = items.find(x => x.id === id);
+        const ex = carrito.find(x => x.id === id);
+        if(ex) { if(ex.q < i.cantidad) ex.q++; else alert('No hay más stock'); } else { carrito.push({ ...i, q: 1 }); }
+        document.getElementById('busquedaProducto').value = '';
+        document.getElementById('searchResults').innerHTML = '';
+        render();
+    }
+
+    function updateQty(idx, delta) {
+        const item = carrito[idx];
+        const stock = items.find(x => x.id === item.id).cantidad;
+        const newQty = item.q + delta;
+        if(newQty > 0 && newQty <= stock) { item.q = newQty; render(); }
+    }
+
+    function renderCarrito() {
+        const c = document.getElementById('carritoContainer');
+        if(!carrito.length) return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>';
+        let tot = 0;
+        c.innerHTML = carrito.map((i, idx) => {
+            const sub = i.precioVenta * i.q * tasaDolar; tot += sub;
+            return `<div class="item" style="border-left-color:var(--secondary);">
+                <div class="item-header"><b>${i.nombre}</b> <span>Bs. ${sub.toFixed(2)}</span></div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="qty-controls">
+                        <button class="btn-qty" onclick="updateQty(${idx}, -1)">-</button>
+                        <span class="qty-num">${i.q}</span>
+                        <button class="btn-qty" onclick="updateQty(${idx}, 1)">+</button>
+                    </div>
+                    <button onclick="carrito.splice(${idx},1); render();" style="background:none; color:red; font-size:1.2rem;">🗑️</button>
+                </div>
+            </div>`;
+        }).join('');
+        document.getElementById('totalCarrito').textContent = 'Bs. ' + tot.toFixed(2);
+    }
+
+    function abrirModalCredito() {
+        if(!carrito.length) return alert('Carrito vacío');
+        document.getElementById('montoCredito').textContent = document.getElementById('totalCarrito').textContent;
+        document.getElementById('modalCredito').classList.add('active');
+    }
+
+    function cerrarModalCredito() { document.getElementById('modalCredito').classList.remove('active'); }
+
+    function finalizarVenta(esCredito) {
+        if(!carrito.length) return;
+        const cliente = document.getElementById('nombreCliente').value.trim();
+        if(esCredito && !cliente) return alert('Escribe el nombre del cliente');
+
+        let totV = 0, ganV = 0, det = "";
+        carrito.forEach(c => {
+            const sub = c.precioVenta * c.q * tasaDolar;
+            const gan = (c.precioVenta - c.costo) * c.q * tasaDolar;
+            totV += sub; ganV += gan;
+            det += `${c.q} ${c.nombre}, `;
+            const it = items.find(x => x.id === c.id);
+            if(it) it.cantidad -= c.q;
+        });
+
+        const v = {
+            producto: det.slice(0, -2), total: totV, ganancia: ganV, 
+            dia: diaActual, hora: new Date().toLocaleTimeString(),
+            tipo: esCredito ? 'credito' : 'contado', cliente: esCredito ? cliente : 'Contado'
+        };
+        ventas.push(v);
+        if(esCredito) creditos.push({ cliente, monto: totV, detalle: v.producto, fecha: diaActual });
+
+        carrito = [];
+        cerrarModalCredito();
+        document.getElementById('nombreCliente').value = '';
+        sync(); render();
+        alert('Venta procesada');
+    }
+
+    function pagarCredito(idx) {
+        if(confirm('¿Confirmas que el cliente pagó esta deuda?')) { creditos.splice(idx, 1); sync(); render(); }
+    }
+
+    function limpiarCarrito() { if(confirm('¿Limpiar carrito?')) { carrito = []; render(); } }
+
+    function descargarReporte() {
+        let csv = "REPORTE CONTROL VIVERES\nFecha: " + diaActual + "\n\n";
+        csv += "--- FALLAS ---\nProducto,Stock\n" + items.filter(i => i.cantidad <= 5).map(i => `${i.nombre},${i.cantidad}`).join("\n");
+        csv += "\n\n--- VENTAS HOY ---\nHora,Producto,Total Bs,Tipo,Cliente\n" + ventas.filter(v => v.dia === diaActual).map(v => `${v.hora},${v.producto},${v.total},${v.tipo},${v.cliente}`).join("\n");
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `reporte_${diaActual.replace(/\//g,'-')}.csv`;
+        a.click();
+    }
+
+    function cerrarDia() {
+        if(confirm('¿Cerrar el día?')) alert('Día cerrado localmente.');
+    }
+
+    init();
+</script>
+</body>
+</html>
