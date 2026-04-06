@@ -8,7 +8,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Control Víveres">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIj48cmVjdCB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgcng9IjMyIiBmaWxsPSIjMjdhZTYwIi8+PHRleHQgeD0iOTYiIHk9IjEyMCIgZm9udC1zaXplPSI5NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0id2hpdGUiPvCfk6Y8L3RleHQ+PC9zdmc+">
+    
+    <!-- Vinculación del icono personalizado -->
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    
     <title>Control de Víveres - Firebase Pro</title>
     <style>
         :root {
@@ -79,6 +83,7 @@
         .btn-edit { background: var(--info); padding: 5px 10px; font-size: 0.75rem; }
         .btn-delete { background: var(--danger); padding: 5px 10px; font-size: 0.75rem; }
         .costo-preview { font-size: 0.75rem; color: var(--info); margin-top: 4px; font-weight: 600; }
+        #qrcode { margin: 20px auto; display: flex; justify-content: center; }
     </style>
 </head>
 <body>
@@ -91,7 +96,7 @@
             <div class="status-badge" id="statusBadge">ABIERTO</div>
             <div class="connection-status" id="connectionStatus">🔴 Local</div>
         </div>
-        <div style="font-size:0.6rem; opacity:0.8; margin-top:5px;">(Toca aquí para configurar)</div>
+        <div style="font-size:0.6rem; opacity:0.8; margin-top:5px;">(Toca aquí para configurar o ver QR)</div>
     </div>
 
     <div class="config-section" id="configSection">
@@ -103,6 +108,9 @@
             <button class="btn-add" onclick="conectarFirebase()" style="width: 100%;">CONECTAR</button>
             <button class="btn-danger" onclick="toggleConfig()" style="width: 100%;">CERRAR</button>
         </div>
+        <button class="btn-info" onclick="generarQR()" style="width:100%; margin-top:10px;">📱 MOSTRAR QR DE CONEXIÓN</button>
+        <div id="qrcode"></div>
+        <p id="qrHelp" style="display:none; font-size:0.7rem; text-align:center; color:#666; margin-top:5px;">Escanea este QR con otro teléfono para abrir la aplicación.</p>
     </div>
 
     <div class="tabs">
@@ -213,6 +221,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/8.8.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.8.1/firebase-database.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <script>
     let items = [], ventas = [], creditos = [], carrito = [];
@@ -226,13 +235,25 @@
         tasaDolar = parseFloat(localStorage.getItem('v_tasa')) || 36.50;
         document.getElementById('tasa').value = tasaDolar;
         document.getElementById('fechaActual').textContent = diaActual;
-        const config = localStorage.getItem('fb_config');
-        if(config) {
-            const c = JSON.parse(config);
-            document.getElementById('projectId').value = c.projectId;
-            document.getElementById('apiKey').value = c.apiKey;
-            document.getElementById('configSection').style.display = 'none';
+        
+        // Cargar llaves desde la URL si existen (Configuración por QR)
+        const urlParams = new URLSearchParams(window.location.search);
+        const pId = urlParams.get('pid');
+        const aKy = urlParams.get('aky');
+        
+        if(pId && aKy) {
+            document.getElementById('projectId').value = pId;
+            document.getElementById('apiKey').value = aKy;
             conectarFirebase();
+        } else {
+            const config = localStorage.getItem('fb_config');
+            if(config) {
+                const c = JSON.parse(config);
+                document.getElementById('projectId').value = c.projectId;
+                document.getElementById('apiKey').value = c.apiKey;
+                document.getElementById('configSection').style.display = 'none';
+                conectarFirebase();
+            }
         }
         render();
     }
@@ -240,6 +261,29 @@
     function toggleConfig() {
         const sec = document.getElementById('configSection');
         sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function generarQR() {
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = '';
+        const pId = document.getElementById('projectId').value.trim();
+        const aKy = document.getElementById('apiKey').value.trim();
+        
+        // Generar URL con las llaves incluidas para auto-configuración
+        let url = window.location.href.split('?')[0];
+        if(pId && aKy) {
+            url += `?pid=${pId}&aky=${aKy}`;
+        }
+        
+        new QRCode(qrContainer, {
+            text: url,
+            width: 150,
+            height: 150,
+            colorDark : "#2c3e50",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.M
+        });
+        document.getElementById('qrHelp').style.display = 'block';
     }
 
     function conectarFirebase() {
