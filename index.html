@@ -83,6 +83,7 @@
         .btn-edit { background: var(--info); padding: 5px 10px; font-size: 0.75rem; }
         .btn-delete { background: var(--danger); padding: 5px 10px; font-size: 0.75rem; }
         .costo-preview { font-size: 0.75rem; color: var(--info); margin-top: 4px; font-weight: 600; }
+        .price-dual { font-size: 0.75rem; color: #666; margin-top: 2px; }
         #qrcode { margin: 20px auto; display: flex; justify-content: center; }
     </style>
 </head>
@@ -171,7 +172,8 @@
         
         <div class="total-section">
             <div style="font-size:0.8rem; opacity:0.9;">VALOR TOTAL INVENTARIO</div>
-            <div class="total-amount" id="totalDisplay">Bs. 0.00</div>
+            <div class="total-amount" id="totalDisplay">Bs. 0,00</div>
+            <div id="totalDisplayUSD" style="font-size:0.9rem; opacity:0.8;">$ 0,00</div>
         </div>
     </div>
 
@@ -182,7 +184,8 @@
         <div id="carritoContainer" class="list-container"><div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div></div>
         <div class="total-section">
             <div style="font-size:0.8rem; opacity:0.9;">TOTAL A PAGAR</div>
-            <div class="total-amount" id="totalCarrito">Bs. 0.00</div>
+            <div class="total-amount" id="totalCarrito">Bs. 0,00</div>
+            <div id="totalCarritoUSD" style="font-size:0.9rem; opacity:0.8;">$ 0,00</div>
         </div>
         <div class="btn-grid">
             <button class="btn-vender" onclick="finalizarVenta(false)">✅ VENTA CONTADO</button>
@@ -202,9 +205,9 @@
     <!-- TAB: REPORTES -->
     <div id="reportes" class="tab-content">
         <div class="stats-box" style="border-left-color: #e74c3c;"><div class="stats-label">⚠️ PRODUCTOS EN FALLA</div><div id="reporteFallas" style="font-size:0.85rem; margin-top:10px;"></div></div>
-        <div class="stats-box"><div class="stats-label">TOTAL INGRESOS HOY</div><div class="stats-value" id="ingresosTotales">Bs. 0.00</div></div>
-        <div class="stats-box" style="border-left-color: #27ae60;"><div class="stats-label">GANANCIA ESTIMADA HOY</div><div class="stats-value" id="gananciaEstimada">Bs. 0.00</div></div>
-        <div class="stats-box" style="border-left-color: #9b59b6;"><div class="stats-label">TOTAL EN CRÉDITOS PENDIENTES</div><div class="stats-value" id="totalCreditos">Bs. 0.00</div></div>
+        <div class="stats-box"><div class="stats-label">TOTAL INGRESOS HOY</div><div class="stats-value" id="ingresosTotales">Bs. 0,00</div><div id="ingresosTotalesUSD" style="font-size:0.8rem; color:#666;">$ 0,00</div></div>
+        <div class="stats-box" style="border-left-color: #27ae60;"><div class="stats-label">GANANCIA ESTIMADA HOY</div><div class="stats-value" id="gananciaEstimada">Bs. 0,00</div><div id="gananciaEstimadaUSD" style="font-size:0.8rem; color:#666;">$ 0,00</div></div>
+        <div class="stats-box" style="border-left-color: #9b59b6;"><div class="stats-label">TOTAL EN CRÉDITOS PENDIENTES</div><div class="stats-value" id="totalCreditos">Bs. 0,00</div><div id="totalCreditosUSD" style="font-size:0.8rem; color:#666;">$ 0,00</div></div>
         <button class="btn-info" onclick="descargarReporte()" style="width:100%;">📥 DESCARGAR REPORTE COMPLETO</button>
         <button class="btn-danger" onclick="cerrarDia()" style="width:100%; margin-top:10px;">🔒 CERRAR DÍA</button>
     </div>
@@ -214,7 +217,11 @@
     <div class="modal-content">
         <h3>💳 Registrar Crédito (Fiado)</h3>
         <div class="input-group"><label>Nombre del Cliente:</label><input type="text" id="nombreCliente" placeholder="Ej: Juan Perez"></div>
-        <div class="stats-box"><div class="stats-label">Monto a Deber:</div><div class="stats-value" id="montoCredito">Bs. 0.00</div></div>
+        <div class="stats-box">
+            <div class="stats-label">Monto a Deber:</div>
+            <div class="stats-value" id="montoCredito">Bs. 0,00</div>
+            <div id="montoCreditoUSD" style="font-size:0.8rem; color:#666;">$ 0,00</div>
+        </div>
         <div class="btn-grid"><button class="btn-add" onclick="finalizarVenta(true)">CONFIRMAR CRÉDITO</button><button class="btn-danger" onclick="cerrarModalCredito()">CANCELAR</button></div>
     </div>
 </div>
@@ -228,6 +235,10 @@
     let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES');
     let db = null, firebaseConnected = false;
 
+    function fM(n) {
+        return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    }
+
     function init() {
         items = JSON.parse(localStorage.getItem('v_items')) || [];
         ventas = JSON.parse(localStorage.getItem('v_ventas')) || [];
@@ -236,7 +247,6 @@
         document.getElementById('tasa').value = tasaDolar;
         document.getElementById('fechaActual').textContent = diaActual;
         
-        // Cargar llaves desde la URL si existen (Configuración por QR)
         const urlParams = new URLSearchParams(window.location.search);
         const pId = urlParams.get('pid');
         const aKy = urlParams.get('aky');
@@ -268,21 +278,9 @@
         qrContainer.innerHTML = '';
         const pId = document.getElementById('projectId').value.trim();
         const aKy = document.getElementById('apiKey').value.trim();
-        
-        // Generar URL con las llaves incluidas para auto-configuración
         let url = window.location.href.split('?')[0];
-        if(pId && aKy) {
-            url += `?pid=${pId}&aky=${aKy}`;
-        }
-        
-        new QRCode(qrContainer, {
-            text: url,
-            width: 150,
-            height: 150,
-            colorDark : "#2c3e50",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.M
-        });
+        if(pId && aKy) url += `?pid=${pId}&aky=${aKy}`;
+        new QRCode(qrContainer, { text: url, width: 150, height: 150, colorDark : "#2c3e50", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
         document.getElementById('qrHelp').style.display = 'block';
     }
 
@@ -340,7 +338,7 @@
         const val = parseFloat(document.getElementById('costo').value) || 0;
         const mon = document.getElementById('monedaCosto').value;
         const preview = document.getElementById('costoDual');
-        preview.textContent = mon === 'USD' ? `Eqv: Bs. ${(val * tasaDolar).toFixed(2)}` : `Eqv: $ ${(val / tasaDolar).toFixed(2)}`;
+        preview.textContent = mon === 'USD' ? `Eqv: Bs. ${fM(val * tasaDolar)}` : `Eqv: $ ${fM(val / tasaDolar)}`;
     }
 
     function addItem() {
@@ -394,7 +392,7 @@
         document.getElementById('cantidad').value = '1';
         document.getElementById('btnGuardar').textContent = 'CARGAR AL INVENTARIO';
         document.getElementById('btnCancelarEdit').style.display = 'none';
-        document.getElementById('costoDual').textContent = 'Eqv: $ 0.00';
+        document.getElementById('costoDual').textContent = 'Eqv: $ 0,00';
     }
 
     function render() {
@@ -403,29 +401,35 @@
         const filtro = document.getElementById('filtroStock').value.toLowerCase();
         let totalInv = 0;
         lista.innerHTML = items.filter(i => i.nombre.toLowerCase().includes(filtro)).map(i => {
-            totalInv += i.precioVenta * i.cantidad * tasaDolar;
+            const pVBs = i.precioVenta * tasaDolar;
+            totalInv += (i.precioVenta * i.cantidad * tasaDolar);
             return `<div class="item ${i.cantidad <= stockMin ? 'alert' : ''}">
                 <div class="item-header"><span class="item-name">${i.nombre}</span><span class="item-quantity">${i.cantidad}</span></div>
-                <div style="font-size:0.8rem; color:#666;">Precio: Bs. ${(i.precioVenta * tasaDolar).toFixed(2)}</div>
+                <div style="font-size:0.9rem; font-weight:bold; color:var(--text);">Bs. ${fM(pVBs)}</div>
+                <div class="price-dual">$ ${fM(i.precioVenta)}</div>
                 <div class="item-actions"><button class="btn-edit" onclick="editarItem(${i.id})">✏️ EDITAR</button><button class="btn-delete" onclick="eliminarItem(${i.id})">🗑️ ELIMINAR</button></div>
             </div>`;
         }).join('');
-        document.getElementById('totalDisplay').textContent = 'Bs. ' + totalInv.toFixed(2);
+        document.getElementById('totalDisplay').textContent = 'Bs. ' + fM(totalInv);
+        document.getElementById('totalDisplayUSD').textContent = '$ ' + fM(totalInv / tasaDolar);
         renderCarrito();
         const fallas = items.filter(i => i.cantidad <= stockMin);
         document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
         const vHoy = ventas.filter(v => v.dia === diaActual);
         let ing = 0, gan = 0;
         vHoy.forEach(v => { ing += (parseFloat(v.total) || 0); gan += (parseFloat(v.ganancia) || 0); });
-        document.getElementById('ingresosTotales').textContent = 'Bs. ' + ing.toFixed(2);
-        document.getElementById('gananciaEstimada').textContent = 'Bs. ' + gan.toFixed(2);
-        document.getElementById('ventasHistorial').innerHTML = vHoy.reverse().map(v => `<div class="item ${v.tipo=='credito'?'credito-item':''}"><b>${v.producto}</b> - Bs. ${v.total.toFixed(2)}</div>`).join('');
+        document.getElementById('ingresosTotales').textContent = 'Bs. ' + fM(ing);
+        document.getElementById('ingresosTotalesUSD').textContent = '$ ' + fM(ing / tasaDolar);
+        document.getElementById('gananciaEstimada').textContent = 'Bs. ' + fM(gan);
+        document.getElementById('gananciaEstimadaUSD').textContent = '$ ' + fM(gan / tasaDolar);
+        document.getElementById('ventasHistorial').innerHTML = vHoy.reverse().map(v => `<div class="item ${v.tipo=='credito'?'credito-item':''}"><b>${v.producto}</b><br>Bs. ${fM(v.total)} <small style="color:#666;">($ ${fM(v.total/tasaDolar)})</small></div>`).join('');
         let totalC = 0;
         document.getElementById('listaCreditos').innerHTML = creditos.map((c, idx) => {
             totalC += parseFloat(c.monto);
-            return `<div class="item credito-item"><b>${c.cliente}</b>: Bs. ${c.monto.toFixed(2)}<br><small>${c.detalle}</small><br><button onclick="pagarCredito(${idx})" style="background:var(--primary); padding:5px; margin-top:5px; font-size:0.7rem;">PAGADO</button></div>`;
+            return `<div class="item credito-item"><b>${c.cliente}</b>: Bs. ${fM(c.monto)} <small>($ ${fM(c.monto/tasaDolar)})</small><br><small>${c.detalle}</small><br><button onclick="pagarCredito(${idx})" style="background:var(--primary); padding:5px; margin-top:5px; font-size:0.7rem;">PAGADO</button></div>`;
         }).join('') || 'Sin deudas';
-        document.getElementById('totalCreditos').textContent = 'Bs. ' + totalC.toFixed(2);
+        document.getElementById('totalCreditos').textContent = 'Bs. ' + fM(totalC);
+        document.getElementById('totalCreditosUSD').textContent = '$ ' + fM(totalC / tasaDolar);
     }
 
     function buscarVenta() {
@@ -433,7 +437,7 @@
         const res = document.getElementById('searchResults');
         if(!q) return res.innerHTML = '';
         res.innerHTML = items.filter(i => i.nombre.toLowerCase().includes(q) && i.cantidad > 0).map(i => `
-            <div class="search-result-item"><div><b>${i.nombre}</b><br><small>Bs. ${(i.precioVenta * tasaDolar).toFixed(2)}</small></div><button class="btn-add-search" onclick="addCarrito(${i.id})">AÑADIR</button></div>
+            <div class="search-result-item"><div><b>${i.nombre}</b><br><small>Bs. ${fM(i.precioVenta * tasaDolar)} ($ ${fM(i.precioVenta)})</small></div><button class="btn-add-search" onclick="addCarrito(${i.id})">AÑADIR</button></div>
         `).join('');
     }
 
@@ -452,18 +456,24 @@
 
     function renderCarrito() {
         const c = document.getElementById('carritoContainer');
-        if(!carrito.length) return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>';
+        if(!carrito.length) {
+            document.getElementById('totalCarrito').textContent = 'Bs. 0,00';
+            document.getElementById('totalCarritoUSD').textContent = '$ 0,00';
+            return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>';
+        }
         let tot = 0;
         c.innerHTML = carrito.map((i, idx) => {
             const sub = i.precioVenta * i.q * tasaDolar; tot += sub;
-            return `<div class="item"><b>${i.nombre}</b> - Bs. ${sub.toFixed(2)}<div class="qty-controls"><button class="btn-qty" onclick="updateQty(${idx},-1)">-</button><span>${i.q}</span><button class="btn-qty" onclick="updateQty(${idx},1)">+</button></div></div>`;
+            return `<div class="item"><b>${i.nombre}</b> - Bs. ${fM(sub)} <small>($ ${fM(sub/tasaDolar)})</small><div class="qty-controls"><button class="btn-qty" onclick="updateQty(${idx},-1)">-</button><span>${i.q}</span><button class="btn-qty" onclick="updateQty(${idx},1)">+</button></div></div>`;
         }).join('');
-        document.getElementById('totalCarrito').textContent = 'Bs. ' + tot.toFixed(2);
+        document.getElementById('totalCarrito').textContent = 'Bs. ' + fM(tot);
+        document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(tot / tasaDolar);
     }
 
     function abrirModalCredito() {
         if(!carrito.length) return;
         document.getElementById('montoCredito').textContent = document.getElementById('totalCarrito').textContent;
+        document.getElementById('montoCreditoUSD').textContent = document.getElementById('totalCarritoUSD').textContent;
         document.getElementById('modalCredito').classList.add('active');
     }
 
