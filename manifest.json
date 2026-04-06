@@ -9,7 +9,7 @@
       "purpose": "any maskable"
     }
   ],
-  "start_url": "./control_viveres_firebase.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f7f6",
   "theme_color": "#27ae60"
