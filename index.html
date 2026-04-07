@@ -9,11 +9,10 @@
     <meta name="apple-mobile-web-app-title" content="Control Víveres">
     <meta name="mobile-web-app-capable" content="yes">
     
-    <!-- Vinculación del icono personalizado -->
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     
-    <title>Control de Víveres - Firebase Pro</title>
+    <title>Control de Víveres - Pro Offline</title>
     <style>
         :root {
             --primary: #27ae60;
@@ -26,7 +25,7 @@
             --text: #2c3e50;
         }
 
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, sans-serif; -webkit-tap-highlight-color: transparent; }
         body { background-color: var(--bg); margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         .app-card { background: var(--card); width: 100%; max-width: 500px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
         .header-info { background: linear-gradient(135deg, var(--primary), var(--info)); color: white; padding: 15px; border-radius: 15px; margin-bottom: 20px; text-align: center; cursor: pointer; }
@@ -74,10 +73,8 @@
         .total-section { background: var(--primary); color: white; padding: 15px; border-radius: 15px; text-align: center; margin-top: 15px; }
         .total-amount { font-size: 1.8rem; font-weight: bold; }
         .config-section { background: #f0f0f0; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #3498db; }
-        .credito-badge { background: #9b59b6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
         .qty-controls { display: flex; align-items: center; gap: 8px; }
         .btn-qty { width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; background: #eee; color: #333; border-radius: 5px; }
-        .qty-num { font-weight: bold; min-width: 25px; text-align: center; }
         .btn-add-search { background: var(--secondary); padding: 5px 10px; font-size: 0.7rem; }
         .item-actions { display: flex; gap: 5px; margin-top: 10px; }
         .btn-edit { background: var(--info); padding: 5px 10px; font-size: 0.75rem; }
@@ -85,13 +82,14 @@
         .costo-preview { font-size: 0.75rem; color: var(--info); margin-top: 4px; font-weight: 600; }
         .price-dual { font-size: 0.75rem; color: #666; margin-top: 2px; }
         #qrcode { margin: 20px auto; display: flex; justify-content: center; }
+        .unit-badge { font-size: 0.65rem; background: #eee; padding: 2px 5px; border-radius: 4px; color: #666; margin-left: 5px; }
     </style>
 </head>
 <body>
 
 <div class="app-card">
     <div class="header-info" onclick="toggleConfig()">
-        <h2>📦 Control de Víveres - Firebase Pro</h2>
+        <h2>📦 Control de Víveres - Pro Offline</h2>
         <p id="fechaActual"></p>
         <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
             <div class="status-badge" id="statusBadge">ABIERTO</div>
@@ -100,7 +98,7 @@
         <div style="font-size:0.6rem; opacity:0.8; margin-top:5px;">(Toca aquí para configurar o ver QR)</div>
     </div>
 
-    <div class="config-section" id="configSection">
+    <div class="config-section" id="configSection" style="display:none;">
         <h3>⚙️ Configuración Firebase</h3>
         <p style="font-size:0.7rem; color:#666; margin-bottom:10px;">Ingresa tus llaves para sincronizar con la nube:</p>
         <input type="text" id="projectId" placeholder="Project ID" style="margin-bottom:10px;">
@@ -140,7 +138,7 @@
         
         <div class="input-row" style="display:flex; gap:10px; margin-bottom:10px; align-items: flex-end;">
             <div style="flex:2;">
-                <label>Costo de Compra</label>
+                <label>Costo de Compra (por Unidad/Kg)</label>
                 <div style="display:flex; gap:5px;">
                     <input type="number" id="costo" placeholder="0.00" step="0.01" oninput="calcularCostoDual()">
                     <select id="monedaCosto" style="width:70px; padding:10px;" onchange="calcularCostoDual()">
@@ -148,7 +146,7 @@
                         <option value="USD">$</option>
                     </select>
                 </div>
-                <div id="costoDual" class="costo-preview">Eqv: $ 0.00</div>
+                <div id="costoDual" class="costo-preview">Eqv: $ 0,00</div>
             </div>
             <div style="flex:1;">
                 <label>Beneficio %</label>
@@ -156,9 +154,18 @@
             </div>
         </div>
 
-        <div class="input-group">
-            <label>Cantidad a Ingresar</label>
-            <input type="number" id="cantidad" placeholder="Cantidad" value="1">
+        <div class="input-row" style="display:flex; gap:10px; margin-bottom:15px;">
+            <div style="flex:1;">
+                <label>Unidad</label>
+                <select id="unidad">
+                    <option value="UND">Unidad (UND)</option>
+                    <option value="KG">Kilogramo (KG)</option>
+                </select>
+            </div>
+            <div style="flex:1;">
+                <label>Cantidad/Peso</label>
+                <input type="number" id="cantidad" placeholder="Cant." value="1" step="0.001">
+            </div>
         </div>
 
         <div class="btn-grid">
@@ -213,6 +220,23 @@
     </div>
 </div>
 
+<!-- MODAL PESO PARA PRODUCTOS KG -->
+<div id="modalPeso" class="modal">
+    <div class="modal-content">
+        <h3>⚖️ Ingresar Peso</h3>
+        <p id="pesoProductoNombre" style="font-weight:bold;"></p>
+        <div class="input-group">
+            <label>Peso en Kilogramos (ej: 0.450):</label>
+            <input type="number" id="pesoInput" step="0.001" placeholder="0.000" autofocus>
+        </div>
+        <div id="pesoPreview" style="text-align:center; margin-bottom:15px; font-weight:bold; color:var(--primary);">Total: Bs. 0,00</div>
+        <div class="btn-grid">
+            <button class="btn-add" onclick="confirmarPeso()">AÑADIR AL CARRITO</button>
+            <button class="btn-danger" onclick="cerrarModalPeso()">CANCELAR</button>
+        </div>
+    </div>
+</div>
+
 <div id="modalCredito" class="modal">
     <div class="modal-content">
         <h3>💳 Registrar Crédito (Fiado)</h3>
@@ -233,7 +257,7 @@
 <script>
     let items = [], ventas = [], creditos = [], carrito = [];
     let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES');
-    let db = null, firebaseConnected = false;
+    let db = null, firebaseConnected = false, itemPendientePeso = null;
 
     function fM(n) {
         return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -247,6 +271,17 @@
         document.getElementById('tasa').value = tasaDolar;
         document.getElementById('fechaActual').textContent = diaActual;
         
+        // Listener para detectar cambios de conexión
+        window.addEventListener('online', () => {
+            document.getElementById('connectionStatus').textContent = '🟢 Online';
+            document.getElementById('connectionStatus').className = 'connection-status online';
+            if(firebaseConnected) sync();
+        });
+        window.addEventListener('offline', () => {
+            document.getElementById('connectionStatus').textContent = '🔴 Offline';
+            document.getElementById('connectionStatus').className = 'connection-status offline';
+        });
+
         const urlParams = new URLSearchParams(window.location.search);
         const pId = urlParams.get('pid');
         const aKy = urlParams.get('aky');
@@ -261,7 +296,6 @@
                 const c = JSON.parse(config);
                 document.getElementById('projectId').value = c.projectId;
                 document.getElementById('apiKey').value = c.apiKey;
-                document.getElementById('configSection').style.display = 'none';
                 conectarFirebase();
             }
         }
@@ -288,6 +322,8 @@
         const projectId = document.getElementById('projectId').value.trim();
         const apiKey = document.getElementById('apiKey').value.trim();
         if(!projectId || !apiKey) return;
+        if(!navigator.onLine) return alert('No hay internet para conectar con Firebase. El sistema seguirá funcionando localmente.');
+        
         try {
             const config = { apiKey, projectId, databaseURL: `https://${projectId}-default-rtdb.firebaseio.com` };
             if (firebase.apps.length) firebase.app().delete().then(() => iniciarFirebase(config, projectId, apiKey));
@@ -299,6 +335,20 @@
         firebase.initializeApp(config);
         db = firebase.database();
         localStorage.setItem('fb_config', JSON.stringify({projectId, apiKey}));
+        
+        // Manejo de desconexión de Firebase para evitar bloqueos
+        db.ref('.info/connected').on('value', snap => {
+            if (snap.val() === true) {
+                document.getElementById('connectionStatus').textContent = '🟢 Sincronizado';
+                document.getElementById('connectionStatus').className = 'connection-status online';
+                firebaseConnected = true;
+            } else {
+                document.getElementById('connectionStatus').textContent = '🔴 Local';
+                document.getElementById('connectionStatus').className = 'connection-status offline';
+                firebaseConnected = false;
+            }
+        });
+
         db.ref('viveres_pro/data').on('value', snap => {
             const data = snap.val();
             if(data) {
@@ -306,11 +356,9 @@
                 document.getElementById('tasa').value = tasaDolar;
                 render();
             } else sync();
+        }, err => {
+            console.warn("Error de Firebase (probablemente offline):", err);
         });
-        firebaseConnected = true;
-        document.getElementById('connectionStatus').textContent = '🟢 Sincronizado';
-        document.getElementById('connectionStatus').className = 'connection-status online';
-        document.getElementById('configSection').style.display = 'none';
     }
 
     function sync() {
@@ -318,7 +366,9 @@
         localStorage.setItem('v_ventas', JSON.stringify(ventas));
         localStorage.setItem('v_creditos', JSON.stringify(creditos));
         localStorage.setItem('v_tasa', tasaDolar);
-        if(firebaseConnected && db) db.ref('viveres_pro/data').set({ items, ventas, creditos, tasa: tasaDolar });
+        if(firebaseConnected && db && navigator.onLine) {
+            db.ref('viveres_pro/data').set({ items, ventas, creditos, tasa: tasaDolar }).catch(e => console.warn("Sync falló:", e));
+        }
     }
 
     function switchTab(tab) {
@@ -346,18 +396,21 @@
         let c = parseFloat(document.getElementById('costo').value);
         const mon = document.getElementById('monedaCosto').value;
         const b = parseFloat(document.getElementById('beneficio').value);
-        const q = parseInt(document.getElementById('cantidad').value);
+        const q = parseFloat(document.getElementById('cantidad').value);
+        const u = document.getElementById('unidad').value;
         const editId = document.getElementById('editId').value;
+        
         if(!n || isNaN(c) || isNaN(q)) return alert('Datos incompletos');
         if(mon === 'BS') c = c / tasaDolar;
         const pV = c * (1 + b/100);
+        
         if(editId) {
             const idx = items.findIndex(i => i.id == editId);
-            if(idx !== -1) items[idx] = { ...items[idx], nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q };
+            if(idx !== -1) items[idx] = { ...items[idx], nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q, unidad: u };
         } else {
             const ex = items.find(i => i.nombre.toLowerCase() === n.toLowerCase());
-            if(ex) { ex.cantidad += q; ex.costo = c; ex.beneficio = b; ex.precioVenta = pV; }
-            else items.push({ id: Date.now(), nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q });
+            if(ex) { ex.cantidad += q; ex.costo = c; ex.beneficio = b; ex.precioVenta = pV; ex.unidad = u; }
+            else items.push({ id: Date.now(), nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q, unidad: u });
         }
         limpiarForm(); sync(); render();
     }
@@ -372,6 +425,7 @@
         document.getElementById('monedaCosto').value = 'BS';
         document.getElementById('beneficio').value = i.beneficio;
         document.getElementById('cantidad').value = i.cantidad;
+        document.getElementById('unidad').value = i.unidad || 'UND';
         document.getElementById('btnGuardar').textContent = 'GUARDAR CAMBIOS';
         document.getElementById('btnCancelarEdit').style.display = 'block';
         calcularCostoDual();
@@ -390,6 +444,7 @@
         document.getElementById('monedaCosto').value = 'BS';
         document.getElementById('beneficio').value = '30';
         document.getElementById('cantidad').value = '1';
+        document.getElementById('unidad').value = 'UND';
         document.getElementById('btnGuardar').textContent = 'CARGAR AL INVENTARIO';
         document.getElementById('btnCancelarEdit').style.display = 'none';
         document.getElementById('costoDual').textContent = 'Eqv: $ 0,00';
@@ -400,21 +455,29 @@
         const stockMin = parseInt(document.getElementById('stockMinimo').value) || 5;
         const filtro = document.getElementById('filtroStock').value.toLowerCase();
         let totalInv = 0;
+        
         lista.innerHTML = items.filter(i => i.nombre.toLowerCase().includes(filtro)).map(i => {
             const pVBs = i.precioVenta * tasaDolar;
             totalInv += (i.precioVenta * i.cantidad * tasaDolar);
+            const unit = i.unidad || 'UND';
             return `<div class="item ${i.cantidad <= stockMin ? 'alert' : ''}">
-                <div class="item-header"><span class="item-name">${i.nombre}</span><span class="item-quantity">${i.cantidad}</span></div>
-                <div style="font-size:0.9rem; font-weight:bold; color:var(--text);">Bs. ${fM(pVBs)}</div>
-                <div class="price-dual">$ ${fM(i.precioVenta)}</div>
+                <div class="item-header">
+                    <span class="item-name">${i.nombre} <span class="unit-badge">${unit}</span></span>
+                    <span class="item-quantity">${unit === 'KG' ? i.cantidad.toFixed(3) : i.cantidad}</span>
+                </div>
+                <div style="font-size:0.9rem; font-weight:bold; color:var(--text);">Bs. ${fM(pVBs)} <small style="font-weight:normal; color:#666;">/${unit}</small></div>
+                <div class="price-dual">$ ${fM(i.precioVenta)} /${unit}</div>
                 <div class="item-actions"><button class="btn-edit" onclick="editarItem(${i.id})">✏️ EDITAR</button><button class="btn-delete" onclick="eliminarItem(${i.id})">🗑️ ELIMINAR</button></div>
             </div>`;
         }).join('');
+        
         document.getElementById('totalDisplay').textContent = 'Bs. ' + fM(totalInv);
         document.getElementById('totalDisplayUSD').textContent = '$ ' + fM(totalInv / tasaDolar);
         renderCarrito();
+        
         const fallas = items.filter(i => i.cantidad <= stockMin);
-        document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
+        document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.unidad === 'KG' ? f.cantidad.toFixed(3) : f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
+        
         const vHoy = ventas.filter(v => v.dia === diaActual);
         let ing = 0, gan = 0;
         vHoy.forEach(v => { ing += (parseFloat(v.total) || 0); gan += (parseFloat(v.ganancia) || 0); });
@@ -422,7 +485,9 @@
         document.getElementById('ingresosTotalesUSD').textContent = '$ ' + fM(ing / tasaDolar);
         document.getElementById('gananciaEstimada').textContent = 'Bs. ' + fM(gan);
         document.getElementById('gananciaEstimadaUSD').textContent = '$ ' + fM(gan / tasaDolar);
+        
         document.getElementById('ventasHistorial').innerHTML = vHoy.reverse().map(v => `<div class="item ${v.tipo=='credito'?'credito-item':''}"><b>${v.producto}</b><br>Bs. ${fM(v.total)} <small style="color:#666;">($ ${fM(v.total/tasaDolar)})</small></div>`).join('');
+        
         let totalC = 0;
         document.getElementById('listaCreditos').innerHTML = creditos.map((c, idx) => {
             totalC += parseFloat(c.monto);
@@ -437,21 +502,74 @@
         const res = document.getElementById('searchResults');
         if(!q) return res.innerHTML = '';
         res.innerHTML = items.filter(i => i.nombre.toLowerCase().includes(q) && i.cantidad > 0).map(i => `
-            <div class="search-result-item"><div><b>${i.nombre}</b><br><small>Bs. ${fM(i.precioVenta * tasaDolar)} ($ ${fM(i.precioVenta)})</small></div><button class="btn-add-search" onclick="addCarrito(${i.id})">AÑADIR</button></div>
+            <div class="search-result-item">
+                <div><b>${i.nombre}</b><br><small>Bs. ${fM(i.precioVenta * tasaDolar)} /${i.unidad || 'UND'}</small></div>
+                <button class="btn-add-search" onclick="prepararAddCarrito(${i.id})">AÑADIR</button>
+            </div>
         `).join('');
     }
 
-    function addCarrito(id) {
+    function prepararAddCarrito(id) {
         const i = items.find(x => x.id === id);
-        const ex = carrito.find(x => x.id === id);
-        if(ex) { if(ex.q < i.cantidad) ex.q++; else alert('Sin stock'); } else carrito.push({ ...i, q: 1 });
+        if(i.unidad === 'KG') {
+            itemPendientePeso = i;
+            document.getElementById('pesoProductoNombre').textContent = i.nombre + " (Precio/Kg: Bs. " + fM(i.precioVenta * tasaDolar) + ")";
+            document.getElementById('pesoInput').value = '';
+            document.getElementById('pesoPreview').textContent = 'Total: Bs. 0,00';
+            document.getElementById('modalPeso').classList.add('active');
+            document.getElementById('pesoInput').focus();
+            
+            // Listener para preview de peso
+            document.getElementById('pesoInput').oninput = () => {
+                const p = parseFloat(document.getElementById('pesoInput').value) || 0;
+                document.getElementById('pesoPreview').textContent = 'Total: Bs. ' + fM(p * i.precioVenta * tasaDolar);
+            };
+        } else {
+            addCarrito(id, 1);
+        }
+    }
+
+    function cerrarModalPeso() {
+        document.getElementById('modalPeso').classList.remove('active');
+        itemPendientePeso = null;
+    }
+
+    function confirmarPeso() {
+        const p = parseFloat(document.getElementById('pesoInput').value);
+        if(isNaN(p) || p <= 0) return alert('Ingresa un peso válido');
+        if(p > itemPendientePeso.cantidad) return alert('No hay suficiente stock (Disponible: ' + itemPendientePeso.cantidad.toFixed(3) + ' Kg)');
+        
+        addCarrito(itemPendientePeso.id, p);
+        cerrarModalPeso();
+    }
+
+    function addCarrito(id, cant) {
+        const i = items.find(x => x.id === id);
+        const ex = carrito.find(x => x.id === id && x.unidad !== 'KG'); // Solo agrupar si es UND
+        
+        if(ex && i.unidad !== 'KG') { 
+            if(ex.q + cant <= i.cantidad) ex.q += cant; 
+            else alert('Sin stock suficiente'); 
+        } else {
+            // Para KG siempre añadimos como item nuevo para manejar pesos distintos
+            carrito.push({ ...i, q: cant }); 
+        }
         render();
     }
 
     function updateQty(idx, delta) {
         const item = carrito[idx];
         const stock = items.find(x => x.id === item.id).cantidad;
-        if(item.q + delta > 0 && item.q + delta <= stock) { item.q += delta; render(); }
+        if(item.unidad === 'KG') {
+            // Para KG el delta es pequeño o simplemente permitimos eliminar
+            if(item.q + (delta * 0.1) > 0 && item.q + (delta * 0.1) <= stock) {
+                item.q += (delta * 0.1);
+                render();
+            }
+        } else {
+            if(item.q + delta > 0 && item.q + delta <= stock) { item.q += delta; render(); }
+            else if(item.q + delta <= 0) { carrito.splice(idx, 1); render(); }
+        }
     }
 
     function renderCarrito() {
@@ -464,7 +582,19 @@
         let tot = 0;
         c.innerHTML = carrito.map((i, idx) => {
             const sub = i.precioVenta * i.q * tasaDolar; tot += sub;
-            return `<div class="item"><b>${i.nombre}</b> - Bs. ${fM(sub)} <small>($ ${fM(sub/tasaDolar)})</small><div class="qty-controls"><button class="btn-qty" onclick="updateQty(${idx},-1)">-</button><span>${i.q}</span><button class="btn-qty" onclick="updateQty(${idx},1)">+</button></div></div>`;
+            const displayQty = i.unidad === 'KG' ? i.q.toFixed(3) + ' Kg' : i.q + ' Und';
+            return `<div class="item">
+                <div style="display:flex; justify-content:space-between;">
+                    <b>${i.nombre}</b>
+                    <button onclick="carrito.splice(${idx},1); render();" style="background:none; color:var(--danger); padding:0; font-size:0.8rem;">✖</button>
+                </div>
+                <div style="font-size:0.85rem;">${displayQty} - Bs. ${fM(sub)} <small>($ ${fM(sub/tasaDolar)})</small></div>
+                <div class="qty-controls">
+                    <button class="btn-qty" onclick="updateQty(${idx},-1)">-</button>
+                    <span style="font-size:0.8rem;">${i.unidad === 'KG' ? 'Ajustar' : i.q}</span>
+                    <button class="btn-qty" onclick="updateQty(${idx},1)">+</button>
+                </div>
+            </div>`;
         }).join('');
         document.getElementById('totalCarrito').textContent = 'Bs. ' + fM(tot);
         document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(tot / tasaDolar);
@@ -483,23 +613,47 @@
         const cliente = document.getElementById('nombreCliente').value.trim();
         if(esCredito && !cliente) return alert('Escribe el nombre');
         let totV = 0, ganV = 0, det = "";
+        
         carrito.forEach(c => {
-            totV += c.precioVenta * c.q * tasaDolar;
-            ganV += (c.precioVenta - c.costo) * c.q * tasaDolar;
-            det += `${c.q} ${c.nombre}, `;
-            items.find(x => x.id === c.id).cantidad -= c.q;
+            const subTotal = c.precioVenta * c.q * tasaDolar;
+            const subGanancia = (c.precioVenta - c.costo) * c.q * tasaDolar;
+            totV += subTotal;
+            ganV += subGanancia;
+            det += `${c.unidad === 'KG' ? c.q.toFixed(3)+'Kg' : c.q} ${c.nombre}, `;
+            
+            const itemStock = items.find(x => x.id === c.id);
+            if(itemStock) itemStock.cantidad -= c.q;
         });
-        ventas.push({ producto: det.slice(0,-2), total: totV, ganancia: ganV, dia: diaActual, hora: new Date().toLocaleTimeString(), tipo: esCredito?'credito':'contado' });
+        
+        ventas.push({ 
+            id: Date.now(),
+            producto: det.slice(0,-2), 
+            total: totV, 
+            ganancia: ganV, 
+            dia: diaActual, 
+            hora: new Date().toLocaleTimeString(), 
+            tipo: esCredito?'credito':'contado' 
+        });
+        
         if(esCredito) creditos.push({ cliente, monto: totV, detalle: det.slice(0,-2), fecha: diaActual });
-        carrito = []; cerrarModalCredito(); sync(); render(); alert('Venta guardada');
+        
+        carrito = []; 
+        cerrarModalCredito(); 
+        sync(); 
+        render(); 
+        alert('Venta guardada correctamente');
     }
 
-    function pagarCredito(idx) { if(confirm('¿Pagado?')) { creditos.splice(idx,1); sync(); render(); } }
-    function limpiarCarrito() { carrito = []; render(); }
-    function cerrarDia() { alert('Día cerrado localmente.'); }
+    function pagarCredito(idx) { if(confirm('¿Marcar como pagado?')) { creditos.splice(idx,1); sync(); render(); } }
+    function limpiarCarrito() { if(confirm('¿Vaciar carrito?')) { carrito = []; render(); } }
+    function cerrarDia() { alert('Día cerrado localmente. Los datos están seguros en este dispositivo.'); }
+    
     function descargarReporte() {
         let csv = "REPORTE VIVERES\nFecha: " + diaActual + "\n\n--- VENTAS ---\n" + ventas.filter(v => v.dia === diaActual).map(v => `${v.hora},${v.producto},${v.total}`).join("\n");
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = `reporte.csv`; a.click();
+        const a = document.createElement('a'); 
+        a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); 
+        a.download = `reporte_${diaActual.replace(/\//g,'-')}.csv`; 
+        a.click();
     }
 
     init();
