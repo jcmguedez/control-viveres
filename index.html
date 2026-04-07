@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     
-    <title>Control de Víveres - Pro Contable</title>
+    <title>Control de Víveres - Pro Contable v2</title>
     <style>
         :root {
             --primary: #27ae60;
@@ -78,7 +78,7 @@
         .btn-delete { background: var(--danger); padding: 5px 10px; font-size: 0.75rem; }
         .costo-preview { font-size: 0.75rem; color: var(--info); margin-top: 4px; font-weight: 600; }
         .price-dual { font-size: 0.75rem; color: #666; margin-top: 2px; }
-        #qrcode { margin: 20px auto; display: center; justify-content: center; }
+        #qrcode { margin: 20px auto; display: flex; justify-content: center; }
         .unit-badge { font-size: 0.65rem; background: #eee; padding: 2px 5px; border-radius: 4px; color: #666; margin-left: 5px; }
         .anulada { text-decoration: line-through; opacity: 0.5; }
         .btn-anular { background: var(--danger); padding: 3px 8px; font-size: 0.65rem; border-radius: 5px; margin-top: 5px; }
@@ -94,13 +94,14 @@
         input:checked + .slider { background-color: var(--primary); }
         input:checked + .slider:before { transform: translateX(20px); }
         .detail-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 3px; }
+        .exento-badge { font-size: 0.6rem; background: #9b59b6; color: white; padding: 2px 5px; border-radius: 4px; margin-left: 5px; }
     </style>
 </head>
 <body>
 
 <div class="app-card">
     <div class="header-info" onclick="toggleConfig()">
-        <h2>📦 Control de Víveres - Pro Contable</h2>
+        <h2>📦 Control de Víveres - Pro Contable v2</h2>
         <p id="fechaActual"></p>
         <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
             <div class="status-badge" id="statusBadge">ABIERTO</div>
@@ -114,6 +115,10 @@
         <div class="input-group">
             <label>Porcentaje IVA (%)</label>
             <input type="number" id="ivaPorcentaje" value="16" step="0.1" onchange="sync()">
+        </div>
+        <div class="input-group">
+            <label>Stock Mínimo por Defecto</label>
+            <input type="number" id="stockMinimoGlobal" value="5" onchange="sync()">
         </div>
         <input type="text" id="projectId" placeholder="Project ID" style="margin-bottom:10px;">
         <input type="password" id="apiKey" placeholder="API Key" style="margin-bottom:10px;">
@@ -181,6 +186,14 @@
             </div>
         </div>
 
+        <div class="switch-container" style="margin-bottom:15px;">
+            <span style="font-size:0.9rem; font-weight:bold;">Producto Exento de IVA</span>
+            <label class="switch">
+                <input type="checkbox" id="exentoIVA">
+                <span class="slider"></span>
+            </label>
+        </div>
+
         <div class="btn-grid">
             <button class="btn-add" id="btnGuardar" onclick="addItem()">CARGAR AL INVENTARIO</button>
             <button class="btn-danger" id="btnCancelarEdit" onclick="limpiarForm()" style="display:none;">CANCELAR</button>
@@ -214,7 +227,8 @@
         
         <div class="total-section">
             <div id="carritoDetalle" style="margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.3); padding-bottom:5px;">
-                <div class="detail-row"><span>Subtotal:</span><span id="subtotalCarrito">Bs. 0,00</span></div>
+                <div class="detail-row"><span>Subtotal Gravable:</span><span id="subtotalGravable">Bs. 0,00</span></div>
+                <div class="detail-row"><span>Subtotal Exento:</span><span id="subtotalExento">Bs. 0,00</span></div>
                 <div class="detail-row"><span>IVA (<span id="ivaLabel">16</span>%):</span><span id="ivaCarrito">Bs. 0,00</span></div>
             </div>
             <div style="font-size:0.8rem; opacity:0.9;">TOTAL FINAL</div>
@@ -304,7 +318,7 @@
 
 <script>
     let items = [], ventas = [], creditos = [], carrito = [], cierres = [];
-    let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES'), ivaPorcentaje = 16;
+    let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES'), ivaPorcentaje = 16, stockMinimoGlobal = 5;
     let db = null, firebaseConnected = false, itemPendientePeso = null;
 
     function fM(n) { return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); }
@@ -316,9 +330,12 @@
         cierres = JSON.parse(localStorage.getItem('v_cierres')) || [];
         tasaDolar = parseFloat(localStorage.getItem('v_tasa')) || 36.50;
         ivaPorcentaje = parseFloat(localStorage.getItem('v_iva')) || 16;
+        stockMinimoGlobal = parseFloat(localStorage.getItem('v_stock_min_global')) || 5;
         
         document.getElementById('tasa').value = tasaDolar;
         document.getElementById('ivaPorcentaje').value = ivaPorcentaje;
+        document.getElementById('stockMinimoGlobal').value = stockMinimoGlobal;
+        document.getElementById('stockMinimo').value = stockMinimoGlobal;
         document.getElementById('fechaActual').textContent = diaActual;
         
         const config = localStorage.getItem('fb_config');
@@ -357,7 +374,9 @@
                 items = data.items || []; ventas = data.ventas || []; creditos = data.creditos || []; 
                 cierres = data.cierres || []; tasaDolar = data.tasa || tasaDolar;
                 ivaPorcentaje = data.iva || ivaPorcentaje;
+                stockMinimoGlobal = data.stockMinGlobal || stockMinimoGlobal;
                 document.getElementById('ivaPorcentaje').value = ivaPorcentaje;
+                document.getElementById('stockMinimoGlobal').value = stockMinimoGlobal;
                 render();
             } else sync();
         });
@@ -365,14 +384,16 @@
 
     function sync() {
         ivaPorcentaje = parseFloat(document.getElementById('ivaPorcentaje').value) || 0;
+        stockMinimoGlobal = parseFloat(document.getElementById('stockMinimoGlobal').value) || 5;
         localStorage.setItem('v_items', JSON.stringify(items));
         localStorage.setItem('v_ventas', JSON.stringify(ventas));
         localStorage.setItem('v_creditos', JSON.stringify(creditos));
         localStorage.setItem('v_cierres', JSON.stringify(cierres));
         localStorage.setItem('v_tasa', tasaDolar);
         localStorage.setItem('v_iva', ivaPorcentaje);
+        localStorage.setItem('v_stock_min_global', stockMinimoGlobal);
         if(firebaseConnected && db && navigator.onLine) {
-            db.ref('viveres_pro/data').set({ items, ventas, creditos, cierres, tasa: tasaDolar, iva: ivaPorcentaje });
+            db.ref('viveres_pro/data').set({ items, ventas, creditos, cierres, tasa: tasaDolar, iva: ivaPorcentaje, stockMinGlobal: stockMinimoGlobal });
         }
     }
 
@@ -398,17 +419,20 @@
         const b = parseFloat(document.getElementById('beneficio').value);
         const q = parseFloat(document.getElementById('cantidad').value);
         const u = document.getElementById('unidad').value;
+        const exento = document.getElementById('exentoIVA').checked;
         const editId = document.getElementById('editId').value;
+        const stockMin = parseFloat(document.getElementById('stockMinimo').value);
+
         if(!n || isNaN(c) || isNaN(q)) return alert('Datos incompletos');
         if(mon === 'BS') c = c / tasaDolar;
         const pV = c * (1 + b/100);
         if(editId) {
             const idx = items.findIndex(i => i.id == editId);
-            if(idx !== -1) items[idx] = { ...items[idx], nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q, unidad: u };
+            if(idx !== -1) items[idx] = { ...items[idx], nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q, unidad: u, exento: exento, stockMin: stockMin };
         } else {
             const ex = items.find(i => i.nombre.toLowerCase() === n.toLowerCase());
-            if(ex) { ex.cantidad += q; ex.costo = c; ex.beneficio = b; ex.precioVenta = pV; ex.unidad = u; }
-            else items.push({ id: Date.now(), nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q, unidad: u });
+            if(ex) { ex.cantidad += q; ex.costo = c; ex.beneficio = b; ex.precioVenta = pV; ex.unidad = u; ex.exento = exento; ex.stockMin = stockMin; }
+            else items.push({ id: Date.now(), nombre: n, costo: c, beneficio: b, precioVenta: pV, cantidad: q, unidad: u, exento: exento, stockMin: stockMin });
         }
         limpiarForm(); sync(); render();
     }
@@ -424,6 +448,8 @@
         document.getElementById('beneficio').value = i.beneficio;
         document.getElementById('cantidad').value = i.cantidad;
         document.getElementById('unidad').value = i.unidad || 'UND';
+        document.getElementById('exentoIVA').checked = i.exento || false;
+        document.getElementById('stockMinimo').value = i.stockMin !== undefined ? i.stockMin : stockMinimoGlobal;
         document.getElementById('btnGuardar').textContent = 'GUARDAR CAMBIOS';
         document.getElementById('btnCancelarEdit').style.display = 'block';
         calcularCostoDual();
@@ -440,6 +466,8 @@
         document.getElementById('beneficio').value = '30';
         document.getElementById('cantidad').value = '1';
         document.getElementById('unidad').value = 'UND';
+        document.getElementById('exentoIVA').checked = false;
+        document.getElementById('stockMinimo').value = stockMinimoGlobal;
         document.getElementById('btnGuardar').textContent = 'CARGAR AL INVENTARIO';
         document.getElementById('btnCancelarEdit').style.display = 'none';
         document.getElementById('costoDual').textContent = 'Eqv: $ 0,00';
@@ -447,7 +475,6 @@
 
     function render() {
         const lista = document.getElementById('lista');
-        const stockMin = parseInt(document.getElementById('stockMinimo').value) || 5;
         const filtro = document.getElementById('filtroStock').value.toLowerCase();
         let totalInv = 0;
         lista.innerHTML = items.filter(i => i.nombre.toLowerCase().includes(filtro)).map(i => {
@@ -455,8 +482,12 @@
             totalInv += (i.precioVenta * i.cantidad * tasaDolar);
             const unit = i.unidad || 'UND';
             const displayQty = unit === 'KG' ? i.cantidad.toFixed(3) + ' Kg' : i.cantidad;
-            return `<div class="item ${i.cantidad <= stockMin ? 'alert' : ''}">
-                <div class="item-header"><span class="item-name">${i.nombre} <span class="unit-badge">${unit}</span></span><span class="item-quantity">${displayQty}</span></div>
+            const sMin = i.stockMin !== undefined ? i.stockMin : stockMinimoGlobal;
+            return `<div class="item ${i.cantidad <= sMin ? 'alert' : ''}">
+                <div class="item-header">
+                    <span class="item-name">${i.nombre} <span class="unit-badge">${unit}</span> ${i.exento ? '<span class="exento-badge">EXENTO</span>' : ''}</span>
+                    <span class="item-quantity">${displayQty}</span>
+                </div>
                 <div style="font-size:0.9rem; font-weight:bold;">Bs. ${fM(pVBs)} <small>/${unit}</small></div>
                 <div class="price-dual">$ ${fM(i.precioVenta)} /${unit}</div>
                 <div class="item-actions"><button class="btn-edit" onclick="editarItem(${i.id})">✏️</button><button class="btn-delete" onclick="eliminarItem(${i.id})">🗑️</button></div>
@@ -465,7 +496,7 @@
         document.getElementById('totalDisplay').textContent = 'Bs. ' + fM(totalInv);
         document.getElementById('totalDisplayUSD').textContent = '$ ' + fM(totalInv / tasaDolar);
         
-        const fallas = items.filter(i => i.cantidad <= stockMin);
+        const fallas = items.filter(i => i.cantidad <= (i.stockMin !== undefined ? i.stockMin : stockMinimoGlobal));
         document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.unidad === 'KG' ? f.cantidad.toFixed(3) : f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
 
         renderCarrito();
@@ -496,7 +527,7 @@
         const res = document.getElementById('searchResults');
         if(!q) return res.innerHTML = '';
         res.innerHTML = items.filter(i => i.nombre.toLowerCase().includes(q) && i.cantidad > 0).map(i => `
-            <div class="search-result-item" onclick="prepararAddCarrito(${i.id})"><div><b>${i.nombre}</b><br><small>Bs. ${fM(i.precioVenta * tasaDolar)} /${i.unidad || 'UND'}</small></div><button class="btn-add-search">AÑADIR</button></div>
+            <div class="search-result-item" onclick="prepararAddCarrito(${i.id})"><div><b>${i.nombre}</b> ${i.exento ? '<span class="exento-badge">EXENTO</span>' : ''}<br><small>Bs. ${fM(i.precioVenta * tasaDolar)} /${i.unidad || 'UND'}</small></div><button class="btn-add-search">AÑADIR</button></div>
         `).join('');
     }
 
@@ -550,16 +581,18 @@
         document.getElementById('ivaLabel').textContent = ivaPorcentaje;
         if(!carrito.length) { 
             document.getElementById('totalCarrito').textContent = 'Bs. 0,00'; 
-            document.getElementById('subtotalCarrito').textContent = 'Bs. 0,00';
+            document.getElementById('subtotalGravable').textContent = 'Bs. 0,00';
+            document.getElementById('subtotalExento').textContent = 'Bs. 0,00';
             document.getElementById('ivaCarrito').textContent = 'Bs. 0,00';
             return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>'; 
         }
-        let sub = 0;
+        let subGrav = 0, subExento = 0;
         c.innerHTML = carrito.map((i, idx) => {
-            const subItem = i.precioVenta * i.q * tasaDolar; sub += subItem;
+            const subItem = i.precioVenta * i.q * tasaDolar;
+            if(i.exento) subExento += subItem; else subGrav += subItem;
             const displayQty = i.unidad === 'KG' ? i.q.toFixed(3) + ' Kg' : i.q + ' Und';
             return `<div class="item">
-                <b>${i.nombre}</b> - Bs. ${fM(subItem)} <small>(${displayQty})</small>
+                <b>${i.nombre}</b> ${i.exento ? '<span class="exento-badge">EXENTO</span>' : ''} - Bs. ${fM(subItem)} <small>(${displayQty})</small>
                 <button onclick="carrito.splice(${idx},1); renderCarrito();" style="background:none; color:var(--danger); float:right;">✖</button>
                 <div class="qty-controls">
                     <button class="btn-qty" onclick="updateQty(${idx},-1)">-</button>
@@ -570,10 +603,11 @@
         }).join('');
         
         const conIVA = document.getElementById('aplicarIVA').checked;
-        const ivaMonto = conIVA ? (sub * (ivaPorcentaje / 100)) : 0;
-        const total = sub + ivaMonto;
+        const ivaMonto = conIVA ? (subGrav * (ivaPorcentaje / 100)) : 0;
+        const total = subGrav + subExento + ivaMonto;
         
-        document.getElementById('subtotalCarrito').textContent = 'Bs. ' + fM(sub);
+        document.getElementById('subtotalGravable').textContent = 'Bs. ' + fM(subGrav);
+        document.getElementById('subtotalExento').textContent = 'Bs. ' + fM(subExento);
         document.getElementById('ivaCarrito').textContent = 'Bs. ' + fM(ivaMonto);
         document.getElementById('totalCarrito').textContent = 'Bs. ' + fM(total);
         document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(total / tasaDolar);
@@ -582,24 +616,25 @@
     function finalizarVenta(esCredito) {
         const cliente = document.getElementById('nombreCliente').value.trim();
         if(esCredito && !cliente) return alert('Escribe el nombre');
-        let subV = 0, ganV = 0, det = "";
+        let subGravV = 0, subExentoV = 0, ganV = 0, det = "";
         const conIVA = document.getElementById('aplicarIVA').checked;
         
         carrito.forEach(c => {
             const subItem = c.precioVenta * c.q * tasaDolar;
-            subV += subItem; 
+            if(c.exento) subExentoV += subItem; else subGravV += subItem;
             ganV += (c.precioVenta - c.costo) * c.q * tasaDolar;
             det += `${c.unidad === 'KG' ? c.q.toFixed(3)+'Kg' : c.q} ${c.nombre}, `;
             items.find(x => x.id === c.id).cantidad -= c.q;
         });
         
-        const ivaMonto = conIVA ? (subV * (ivaPorcentaje / 100)) : 0;
-        const totalV = subV + ivaMonto;
+        const ivaMonto = conIVA ? (subGravV * (ivaPorcentaje / 100)) : 0;
+        const totalV = subGravV + subExentoV + ivaMonto;
         
         ventas.push({ 
             id: Date.now(), 
             producto: det.slice(0,-2), 
-            subtotal: subV,
+            subtotalGravable: subGravV,
+            subtotalExento: subExentoV,
             ivaMonto: ivaMonto,
             total: totalV, 
             ganancia: ganV, 
