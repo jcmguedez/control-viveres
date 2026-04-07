@@ -12,7 +12,7 @@
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
     
-    <title>Control de Víveres - Pro Gestión</title>
+    <title>Control de Víveres - Pro Contable</title>
     <style>
         :root {
             --primary: #27ae60;
@@ -78,7 +78,7 @@
         .btn-delete { background: var(--danger); padding: 5px 10px; font-size: 0.75rem; }
         .costo-preview { font-size: 0.75rem; color: var(--info); margin-top: 4px; font-weight: 600; }
         .price-dual { font-size: 0.75rem; color: #666; margin-top: 2px; }
-        #qrcode { margin: 20px auto; display: flex; justify-content: center; }
+        #qrcode { margin: 20px auto; display: center; justify-content: center; }
         .unit-badge { font-size: 0.65rem; background: #eee; padding: 2px 5px; border-radius: 4px; color: #666; margin-left: 5px; }
         .anulada { text-decoration: line-through; opacity: 0.5; }
         .btn-anular { background: var(--danger); padding: 3px 8px; font-size: 0.65rem; border-radius: 5px; margin-top: 5px; }
@@ -86,13 +86,21 @@
         .falla-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: white; }
         .agotado { background: #e74c3c; }
         .bajo { background: #f39c12; }
+        .switch-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; background: #f9f9f9; padding: 10px; border-radius: 10px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .detail-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 3px; }
     </style>
 </head>
 <body>
 
 <div class="app-card">
     <div class="header-info" onclick="toggleConfig()">
-        <h2>📦 Control de Víveres - Pro Gestión</h2>
+        <h2>📦 Control de Víveres - Pro Contable</h2>
         <p id="fechaActual"></p>
         <div style="display: flex; justify-content: center; gap: 10px; align-items: center;">
             <div class="status-badge" id="statusBadge">ABIERTO</div>
@@ -102,7 +110,11 @@
     </div>
 
     <div class="config-section" id="configSection" style="display:none;">
-        <h3>⚙️ Configuración Firebase</h3>
+        <h3>⚙️ Configuración General</h3>
+        <div class="input-group">
+            <label>Porcentaje IVA (%)</label>
+            <input type="number" id="ivaPorcentaje" value="16" step="0.1" onchange="sync()">
+        </div>
         <input type="text" id="projectId" placeholder="Project ID" style="margin-bottom:10px;">
         <input type="password" id="apiKey" placeholder="API Key" style="margin-bottom:10px;">
         <div class="btn-grid">
@@ -189,12 +201,27 @@
     <div id="ventas" class="tab-content">
         <input type="text" id="busquedaProducto" class="search-input" placeholder="🔍 Buscar producto..." oninput="buscarVenta()">
         <div id="searchResults" class="search-results"></div>
+        
+        <div class="switch-container">
+            <span style="font-size:0.9rem; font-weight:bold;">Incluir IVA en Ticket</span>
+            <label class="switch">
+                <input type="checkbox" id="aplicarIVA" onchange="renderCarrito()">
+                <span class="slider"></span>
+            </label>
+        </div>
+
         <div id="carritoContainer" class="list-container"><div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div></div>
+        
         <div class="total-section">
-            <div style="font-size:0.8rem; opacity:0.9;">TOTAL A PAGAR</div>
+            <div id="carritoDetalle" style="margin-bottom:10px; border-bottom:1px solid rgba(255,255,255,0.3); padding-bottom:5px;">
+                <div class="detail-row"><span>Subtotal:</span><span id="subtotalCarrito">Bs. 0,00</span></div>
+                <div class="detail-row"><span>IVA (<span id="ivaLabel">16</span>%):</span><span id="ivaCarrito">Bs. 0,00</span></div>
+            </div>
+            <div style="font-size:0.8rem; opacity:0.9;">TOTAL FINAL</div>
             <div class="total-amount" id="totalCarrito">Bs. 0,00</div>
             <div id="totalCarritoUSD" style="font-size:0.9rem; opacity:0.8;">$ 0,00</div>
         </div>
+        
         <div class="btn-grid">
             <button class="btn-vender" onclick="finalizarVenta(false)">✅ VENTA CONTADO</button>
             <button class="btn-info" onclick="abrirModalCredito()">💳 DAR CRÉDITO</button>
@@ -212,14 +239,26 @@
 
     <!-- TAB: REPORTES -->
     <div id="reportes" class="tab-content">
+        <h2>📊 Dashboard Control Diario</h2>
+        <div class="stats-box" style="border-left-color: var(--info);">
+            <div class="stats-label">TOTAL VENTAS BRUTAS</div>
+            <div class="stats-value" id="ingresosTotales">Bs. 0,00</div>
+        </div>
+        <div class="stats-box" style="border-left-color: var(--secondary);">
+            <div class="stats-label">TOTAL IVA RECAUDADO</div>
+            <div class="stats-value" id="ivaRecaudado">Bs. 0,00</div>
+        </div>
+        <div class="stats-box" style="border-left-color: var(--primary);">
+            <div class="stats-label">GANANCIA ESTIMADA (NETA)</div>
+            <div class="stats-value" id="gananciaEstimada">Bs. 0,00</div>
+        </div>
+
         <div class="stats-box" style="border-left-color: #e74c3c;">
             <div class="stats-label">⚠️ PRODUCTOS EN FALLA</div>
             <div id="reporteFallas" style="font-size:0.85rem; margin-top:10px;"></div>
         </div>
-        <div class="stats-box"><div class="stats-label">TOTAL INGRESOS HOY</div><div class="stats-value" id="ingresosTotales">Bs. 0,00</div></div>
-        <div class="stats-box" style="border-left-color: #27ae60;"><div class="stats-label">GANANCIA ESTIMADA HOY</div><div class="stats-value" id="gananciaEstimada">Bs. 0,00</div></div>
         
-        <button class="btn-vender" onclick="cerrarDia()" style="width:100%; margin-bottom:10px;">🔒 CERRAR DÍA (ARCHIVAR)</button>
+        <button class="btn-vender" onclick="cerrarDia()" style="width:100%; margin-bottom:10px;">🔒 CERRAR CAJA (ARCHIVAR)</button>
         <button class="btn-danger" onclick="cerrarMes()" style="width:100%; margin-bottom:20px;">📅 CIERRE MENSUAL</button>
 
         <h2>📂 Historial de Cierres</h2>
@@ -265,7 +304,7 @@
 
 <script>
     let items = [], ventas = [], creditos = [], carrito = [], cierres = [];
-    let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES');
+    let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES'), ivaPorcentaje = 16;
     let db = null, firebaseConnected = false, itemPendientePeso = null;
 
     function fM(n) { return new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); }
@@ -276,7 +315,10 @@
         creditos = JSON.parse(localStorage.getItem('v_creditos')) || [];
         cierres = JSON.parse(localStorage.getItem('v_cierres')) || [];
         tasaDolar = parseFloat(localStorage.getItem('v_tasa')) || 36.50;
+        ivaPorcentaje = parseFloat(localStorage.getItem('v_iva')) || 16;
+        
         document.getElementById('tasa').value = tasaDolar;
+        document.getElementById('ivaPorcentaje').value = ivaPorcentaje;
         document.getElementById('fechaActual').textContent = diaActual;
         
         const config = localStorage.getItem('fb_config');
@@ -314,19 +356,23 @@
             if(data) {
                 items = data.items || []; ventas = data.ventas || []; creditos = data.creditos || []; 
                 cierres = data.cierres || []; tasaDolar = data.tasa || tasaDolar;
+                ivaPorcentaje = data.iva || ivaPorcentaje;
+                document.getElementById('ivaPorcentaje').value = ivaPorcentaje;
                 render();
             } else sync();
         });
     }
 
     function sync() {
+        ivaPorcentaje = parseFloat(document.getElementById('ivaPorcentaje').value) || 0;
         localStorage.setItem('v_items', JSON.stringify(items));
         localStorage.setItem('v_ventas', JSON.stringify(ventas));
         localStorage.setItem('v_creditos', JSON.stringify(creditos));
         localStorage.setItem('v_cierres', JSON.stringify(cierres));
         localStorage.setItem('v_tasa', tasaDolar);
+        localStorage.setItem('v_iva', ivaPorcentaje);
         if(firebaseConnected && db && navigator.onLine) {
-            db.ref('viveres_pro/data').set({ items, ventas, creditos, cierres, tasa: tasaDolar });
+            db.ref('viveres_pro/data').set({ items, ventas, creditos, cierres, tasa: tasaDolar, iva: ivaPorcentaje });
         }
     }
 
@@ -419,23 +465,30 @@
         document.getElementById('totalDisplay').textContent = 'Bs. ' + fM(totalInv);
         document.getElementById('totalDisplayUSD').textContent = '$ ' + fM(totalInv / tasaDolar);
         
-        // Reporte de Fallas
         const fallas = items.filter(i => i.cantidad <= stockMin);
         document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.unidad === 'KG' ? f.cantidad.toFixed(3) : f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
 
         renderCarrito();
         const vHoy = ventas.filter(v => v.dia === diaActual);
-        let ing = 0, gan = 0;
-        vHoy.forEach(v => { if(!v.anulada) { ing += v.total; gan += v.ganancia; } });
+        let ing = 0, gan = 0, ivaRec = 0;
+        vHoy.forEach(v => { 
+            if(!v.anulada) { 
+                ing += v.total; 
+                gan += v.ganancia; 
+                ivaRec += (v.ivaMonto || 0);
+            } 
+        });
         document.getElementById('ingresosTotales').textContent = 'Bs. ' + fM(ing);
+        document.getElementById('ivaRecaudado').textContent = 'Bs. ' + fM(ivaRec);
         document.getElementById('gananciaEstimada').textContent = 'Bs. ' + fM(gan);
+        
         document.getElementById('ventasHistorial').innerHTML = vHoy.reverse().map(v => `
             <div class="item ${v.anulada ? 'anulada' : ''}">
-                <b>${v.producto}</b><br>Bs. ${fM(v.total)} (${v.hora})
+                <b>${v.producto}</b><br>Total: Bs. ${fM(v.total)} ${v.ivaMonto > 0 ? '(Inc. IVA)' : ''} (${v.hora})
                 ${!v.anulada ? `<br><button class="btn-anular" onclick="anularVenta(${v.id})">ANULAR VENTA</button>` : '<b>[ANULADA]</b>'}
             </div>`).join('');
         document.getElementById('listaCreditos').innerHTML = creditos.map((c, idx) => `<div class="item"><b>${c.cliente}</b>: Bs. ${fM(c.monto)}<br><small>${c.detalle}</small><br><button onclick="pagarCredito(${idx})" style="background:var(--primary); padding:5px; margin-top:5px; font-size:0.7rem;">PAGADO</button></div>`).join('') || 'Sin deudas';
-        document.getElementById('historialCierres').innerHTML = cierres.slice().reverse().map(c => `<div class="item cierre-item"><b>${c.tipo}: ${c.fecha}</b><br>Ingresos: Bs. ${fM(c.ingresos)}<br>Ganancia: Bs. ${fM(c.ganancia)}</div>`).join('') || 'No hay cierres';
+        document.getElementById('historialCierres').innerHTML = cierres.slice().reverse().map(c => `<div class="item cierre-item"><b>${c.tipo}: ${c.fecha}</b><br>Ventas: Bs. ${fM(c.ingresos)}<br>IVA: Bs. ${fM(c.iva || 0)}<br>Ganancia: Bs. ${fM(c.ganancia)}</div>`).join('') || 'No hay cierres';
     }
 
     function buscarVenta() {
@@ -477,32 +530,37 @@
         const ex = carrito.find(x => x.id === id && x.unidad !== 'KG');
         if(ex && i.unidad !== 'KG') { if(ex.q + cant <= i.cantidad) ex.q += cant; else alert('Sin stock'); }
         else carrito.push({ ...i, q: cant });
-        render();
+        renderCarrito();
     }
 
     function updateQty(idx, delta) {
         const item = carrito[idx];
         const stock = items.find(x => x.id === item.id).cantidad;
         if(item.unidad === 'KG') {
-            // Para KG permitimos eliminar o ajustar levemente
-            if(item.q + (delta * 0.1) > 0 && item.q + (delta * 0.1) <= stock) { item.q += (delta * 0.1); render(); }
-            else if(item.q + (delta * 0.1) <= 0) { carrito.splice(idx, 1); render(); }
+            if(item.q + (delta * 0.1) > 0 && item.q + (delta * 0.1) <= stock) { item.q += (delta * 0.1); renderCarrito(); }
+            else if(item.q + (delta * 0.1) <= 0) { carrito.splice(idx, 1); renderCarrito(); }
         } else {
-            if(item.q + delta > 0 && item.q + delta <= stock) { item.q += delta; render(); }
-            else if(item.q + delta <= 0) { carrito.splice(idx, 1); render(); }
+            if(item.q + delta > 0 && item.q + delta <= stock) { item.q += delta; renderCarrito(); }
+            else if(item.q + delta <= 0) { carrito.splice(idx, 1); renderCarrito(); }
         }
     }
 
     function renderCarrito() {
         const c = document.getElementById('carritoContainer');
-        if(!carrito.length) { document.getElementById('totalCarrito').textContent = 'Bs. 0,00'; return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>'; }
-        let tot = 0;
+        document.getElementById('ivaLabel').textContent = ivaPorcentaje;
+        if(!carrito.length) { 
+            document.getElementById('totalCarrito').textContent = 'Bs. 0,00'; 
+            document.getElementById('subtotalCarrito').textContent = 'Bs. 0,00';
+            document.getElementById('ivaCarrito').textContent = 'Bs. 0,00';
+            return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>'; 
+        }
+        let sub = 0;
         c.innerHTML = carrito.map((i, idx) => {
-            const sub = i.precioVenta * i.q * tasaDolar; tot += sub;
+            const subItem = i.precioVenta * i.q * tasaDolar; sub += subItem;
             const displayQty = i.unidad === 'KG' ? i.q.toFixed(3) + ' Kg' : i.q + ' Und';
             return `<div class="item">
-                <b>${i.nombre}</b> - Bs. ${fM(sub)} <small>(${displayQty})</small>
-                <button onclick="carrito.splice(${idx},1); render();" style="background:none; color:var(--danger); float:right;">✖</button>
+                <b>${i.nombre}</b> - Bs. ${fM(subItem)} <small>(${displayQty})</small>
+                <button onclick="carrito.splice(${idx},1); renderCarrito();" style="background:none; color:var(--danger); float:right;">✖</button>
                 <div class="qty-controls">
                     <button class="btn-qty" onclick="updateQty(${idx},-1)">-</button>
                     <span style="font-weight:bold; min-width:30px; text-align:center;">${i.unidad === 'KG' ? 'Kg' : i.q}</span>
@@ -510,22 +568,48 @@
                 </div>
             </div>`;
         }).join('');
-        document.getElementById('totalCarrito').textContent = 'Bs. ' + fM(tot);
-        document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(tot / tasaDolar);
+        
+        const conIVA = document.getElementById('aplicarIVA').checked;
+        const ivaMonto = conIVA ? (sub * (ivaPorcentaje / 100)) : 0;
+        const total = sub + ivaMonto;
+        
+        document.getElementById('subtotalCarrito').textContent = 'Bs. ' + fM(sub);
+        document.getElementById('ivaCarrito').textContent = 'Bs. ' + fM(ivaMonto);
+        document.getElementById('totalCarrito').textContent = 'Bs. ' + fM(total);
+        document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(total / tasaDolar);
     }
 
     function finalizarVenta(esCredito) {
         const cliente = document.getElementById('nombreCliente').value.trim();
         if(esCredito && !cliente) return alert('Escribe el nombre');
-        let totV = 0, ganV = 0, det = "";
+        let subV = 0, ganV = 0, det = "";
+        const conIVA = document.getElementById('aplicarIVA').checked;
+        
         carrito.forEach(c => {
-            const sub = c.precioVenta * c.q * tasaDolar;
-            totV += sub; ganV += (c.precioVenta - c.costo) * c.q * tasaDolar;
+            const subItem = c.precioVenta * c.q * tasaDolar;
+            subV += subItem; 
+            ganV += (c.precioVenta - c.costo) * c.q * tasaDolar;
             det += `${c.unidad === 'KG' ? c.q.toFixed(3)+'Kg' : c.q} ${c.nombre}, `;
             items.find(x => x.id === c.id).cantidad -= c.q;
         });
-        ventas.push({ id: Date.now(), producto: det.slice(0,-2), total: totV, ganancia: ganV, dia: diaActual, hora: new Date().toLocaleTimeString(), tipo: esCredito?'credito':'contado', anulada: false });
-        if(esCredito) creditos.push({ cliente, monto: totV, detalle: det.slice(0,-2), fecha: diaActual });
+        
+        const ivaMonto = conIVA ? (subV * (ivaPorcentaje / 100)) : 0;
+        const totalV = subV + ivaMonto;
+        
+        ventas.push({ 
+            id: Date.now(), 
+            producto: det.slice(0,-2), 
+            subtotal: subV,
+            ivaMonto: ivaMonto,
+            total: totalV, 
+            ganancia: ganV, 
+            dia: diaActual, 
+            hora: new Date().toLocaleTimeString(), 
+            tipo: esCredito?'credito':'contado', 
+            anulada: false 
+        });
+        
+        if(esCredito) creditos.push({ cliente, monto: totalV, detalle: det.slice(0,-2), fecha: diaActual });
         carrito = []; cerrarModalCredito(); sync(); render(); alert('Venta guardada');
     }
 
@@ -552,23 +636,23 @@
     function cerrarDia() {
         const vHoy = ventas.filter(v => v.dia === diaActual && !v.anulada);
         if(!vHoy.length) return alert('No hay ventas hoy');
-        if(confirm('¿Cerrar el día? Las ventas de hoy se archivarán.')) {
-            let ing = 0, gan = 0;
-            vHoy.forEach(v => { ing += v.total; gan += v.ganancia; });
-            cierres.push({ fecha: diaActual, ingresos: ing, ganancia: gan, tipo: 'DIARIO' });
+        if(confirm('¿Cerrar caja? Se guardarán los totales de ventas, IVA y ganancias.')) {
+            let ing = 0, gan = 0, iva = 0;
+            vHoy.forEach(v => { ing += v.total; gan += v.ganancia; iva += (v.ivaMonto || 0); });
+            cierres.push({ fecha: diaActual, ingresos: ing, iva: iva, ganancia: gan, tipo: 'DIARIO' });
             ventas = ventas.filter(v => v.dia !== diaActual);
-            sync(); render(); alert('Día cerrado y archivado.');
+            sync(); render(); alert('Caja cerrada y archivada.');
         }
     }
 
     function cerrarMes() {
-        if(confirm('¿Realizar cierre mensual? Se agruparán los cierres diarios en un solo registro mensual.')) {
-            let ing = 0, gan = 0;
+        if(confirm('¿Realizar cierre mensual? Se agruparán los cierres diarios.')) {
+            let ing = 0, gan = 0, iva = 0;
             const cierresDiarios = cierres.filter(c => c.tipo === 'DIARIO');
-            cierresDiarios.forEach(c => { ing += c.ingresos; gan += c.ganancia; });
+            cierresDiarios.forEach(c => { ing += c.ingresos; gan += c.ganancia; iva += (c.iva || 0); });
             const mesAnio = diaActual.split('/')[1] + '/' + diaActual.split('/')[2];
             cierres = cierres.filter(c => c.tipo !== 'DIARIO');
-            cierres.push({ fecha: 'MES ' + mesAnio, ingresos: ing, ganancia: gan, tipo: 'MENSUAL' });
+            cierres.push({ fecha: 'MES ' + mesAnio, ingresos: ing, iva: iva, ganancia: gan, tipo: 'MENSUAL' });
             sync(); render(); alert('Cierre mensual completado.');
         }
     }
@@ -576,12 +660,12 @@
     function abrirModalCredito() { if(carrito.length) { document.getElementById('montoCredito').textContent = document.getElementById('totalCarrito').textContent; document.getElementById('modalCredito').classList.add('active'); } }
     function cerrarModalCredito() { document.getElementById('modalCredito').classList.remove('active'); }
     function pagarCredito(idx) { if(confirm('¿Pagado?')) { creditos.splice(idx,1); sync(); render(); } }
-    function limpiarCarrito() { if(confirm('¿Vaciar?')) { carrito = []; render(); } }
+    function limpiarCarrito() { if(confirm('¿Vaciar?')) { carrito = []; renderCarrito(); } }
     function toggleConfig() { const s = document.getElementById('configSection'); s.style.display = s.style.display === 'none' ? 'block' : 'none'; }
     function generarQR() { const q = document.getElementById('qrcode'); q.innerHTML = ''; new QRCode(q, { text: window.location.href, width: 150, height: 150 }); }
     function descargarReporte() {
-        let csv = "FECHA,TIPO,INGRESOS,GANANCIA\n" + cierres.map(c => `${c.fecha},${c.tipo},${c.ingresos},${c.ganancia}`).join("\n");
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = `reporte.csv`; a.click();
+        let csv = "FECHA,TIPO,VENTAS_TOTAL,IVA,GANANCIA_NETA\n" + cierres.map(c => `${c.fecha},${c.tipo},${c.ingresos},${c.iva},${c.ganancia}`).join("\n");
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = `reporte_contable.csv`; a.click();
     }
 
     init();
