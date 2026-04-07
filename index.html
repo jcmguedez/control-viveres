@@ -70,7 +70,7 @@
         .total-section { background: var(--primary); color: white; padding: 15px; border-radius: 15px; text-align: center; margin-top: 15px; }
         .total-amount { font-size: 1.8rem; font-weight: bold; }
         .config-section { background: #f0f0f0; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #3498db; }
-        .qty-controls { display: flex; align-items: center; gap: 8px; }
+        .qty-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
         .btn-qty { width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; background: #eee; color: #333; border-radius: 5px; }
         .btn-add-search { background: var(--secondary); padding: 5px 10px; font-size: 0.7rem; }
         .item-actions { display: flex; gap: 5px; margin-top: 10px; }
@@ -83,6 +83,9 @@
         .anulada { text-decoration: line-through; opacity: 0.5; }
         .btn-anular { background: var(--danger); padding: 3px 8px; font-size: 0.65rem; border-radius: 5px; margin-top: 5px; }
         .cierre-item { border-left-color: var(--secondary); background: #fff9f0; }
+        .falla-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: white; }
+        .agotado { background: #e74c3c; }
+        .bajo { background: #f39c12; }
     </style>
 </head>
 <body>
@@ -209,6 +212,10 @@
 
     <!-- TAB: REPORTES -->
     <div id="reportes" class="tab-content">
+        <div class="stats-box" style="border-left-color: #e74c3c;">
+            <div class="stats-label">⚠️ PRODUCTOS EN FALLA</div>
+            <div id="reporteFallas" style="font-size:0.85rem; margin-top:10px;"></div>
+        </div>
         <div class="stats-box"><div class="stats-label">TOTAL INGRESOS HOY</div><div class="stats-value" id="ingresosTotales">Bs. 0,00</div></div>
         <div class="stats-box" style="border-left-color: #27ae60;"><div class="stats-label">GANANCIA ESTIMADA HOY</div><div class="stats-value" id="gananciaEstimada">Bs. 0,00</div></div>
         
@@ -401,8 +408,9 @@
             const pVBs = i.precioVenta * tasaDolar;
             totalInv += (i.precioVenta * i.cantidad * tasaDolar);
             const unit = i.unidad || 'UND';
+            const displayQty = unit === 'KG' ? i.cantidad.toFixed(3) + ' Kg' : i.cantidad;
             return `<div class="item ${i.cantidad <= stockMin ? 'alert' : ''}">
-                <div class="item-header"><span class="item-name">${i.nombre} <span class="unit-badge">${unit}</span></span><span class="item-quantity">${unit === 'KG' ? i.cantidad.toFixed(3) : i.cantidad}</span></div>
+                <div class="item-header"><span class="item-name">${i.nombre} <span class="unit-badge">${unit}</span></span><span class="item-quantity">${displayQty}</span></div>
                 <div style="font-size:0.9rem; font-weight:bold;">Bs. ${fM(pVBs)} <small>/${unit}</small></div>
                 <div class="price-dual">$ ${fM(i.precioVenta)} /${unit}</div>
                 <div class="item-actions"><button class="btn-edit" onclick="editarItem(${i.id})">✏️</button><button class="btn-delete" onclick="eliminarItem(${i.id})">🗑️</button></div>
@@ -410,6 +418,11 @@
         }).join('');
         document.getElementById('totalDisplay').textContent = 'Bs. ' + fM(totalInv);
         document.getElementById('totalDisplayUSD').textContent = '$ ' + fM(totalInv / tasaDolar);
+        
+        // Reporte de Fallas
+        const fallas = items.filter(i => i.cantidad <= stockMin);
+        document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.unidad === 'KG' ? f.cantidad.toFixed(3) : f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
+
         renderCarrito();
         const vHoy = ventas.filter(v => v.dia === diaActual);
         let ing = 0, gan = 0;
@@ -467,13 +480,35 @@
         render();
     }
 
+    function updateQty(idx, delta) {
+        const item = carrito[idx];
+        const stock = items.find(x => x.id === item.id).cantidad;
+        if(item.unidad === 'KG') {
+            // Para KG permitimos eliminar o ajustar levemente
+            if(item.q + (delta * 0.1) > 0 && item.q + (delta * 0.1) <= stock) { item.q += (delta * 0.1); render(); }
+            else if(item.q + (delta * 0.1) <= 0) { carrito.splice(idx, 1); render(); }
+        } else {
+            if(item.q + delta > 0 && item.q + delta <= stock) { item.q += delta; render(); }
+            else if(item.q + delta <= 0) { carrito.splice(idx, 1); render(); }
+        }
+    }
+
     function renderCarrito() {
         const c = document.getElementById('carritoContainer');
         if(!carrito.length) { document.getElementById('totalCarrito').textContent = 'Bs. 0,00'; return c.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">Carrito vacío</div>'; }
         let tot = 0;
         c.innerHTML = carrito.map((i, idx) => {
             const sub = i.precioVenta * i.q * tasaDolar; tot += sub;
-            return `<div class="item"><b>${i.nombre}</b> - Bs. ${fM(sub)} <small>(${i.unidad === 'KG' ? i.q.toFixed(3)+'Kg' : i.q+'Und'})</small><button onclick="carrito.splice(${idx},1); render();" style="background:none; color:var(--danger); float:right;">✖</button></div>`;
+            const displayQty = i.unidad === 'KG' ? i.q.toFixed(3) + ' Kg' : i.q + ' Und';
+            return `<div class="item">
+                <b>${i.nombre}</b> - Bs. ${fM(sub)} <small>(${displayQty})</small>
+                <button onclick="carrito.splice(${idx},1); render();" style="background:none; color:var(--danger); float:right;">✖</button>
+                <div class="qty-controls">
+                    <button class="btn-qty" onclick="updateQty(${idx},-1)">-</button>
+                    <span style="font-weight:bold; min-width:30px; text-align:center;">${i.unidad === 'KG' ? 'Kg' : i.q}</span>
+                    <button class="btn-qty" onclick="updateQty(${idx},1)">+</button>
+                </div>
+            </div>`;
         }).join('');
         document.getElementById('totalCarrito').textContent = 'Bs. ' + fM(tot);
         document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(tot / tasaDolar);
@@ -499,7 +534,6 @@
             const v = ventas.find(x => x.id === id);
             if(v) {
                 v.anulada = true;
-                // Devolver stock (lógica simplificada: asume que los nombres no han cambiado)
                 const partes = v.producto.split(', ');
                 partes.forEach(p => {
                     const match = p.match(/([\d.]+)(Kg| )?(.*)/);
@@ -522,7 +556,7 @@
             let ing = 0, gan = 0;
             vHoy.forEach(v => { ing += v.total; gan += v.ganancia; });
             cierres.push({ fecha: diaActual, ingresos: ing, ganancia: gan, tipo: 'DIARIO' });
-            ventas = ventas.filter(v => v.dia !== diaActual); // Limpiar ventas del día
+            ventas = ventas.filter(v => v.dia !== diaActual);
             sync(); render(); alert('Día cerrado y archivado.');
         }
     }
@@ -533,7 +567,7 @@
             const cierresDiarios = cierres.filter(c => c.tipo === 'DIARIO');
             cierresDiarios.forEach(c => { ing += c.ingresos; gan += c.ganancia; });
             const mesAnio = diaActual.split('/')[1] + '/' + diaActual.split('/')[2];
-            cierres = cierres.filter(c => c.tipo !== 'DIARIO'); // Borrar diarios
+            cierres = cierres.filter(c => c.tipo !== 'DIARIO');
             cierres.push({ fecha: 'MES ' + mesAnio, ingresos: ing, ganancia: gan, tipo: 'MENSUAL' });
             sync(); render(); alert('Cierre mensual completado.');
         }
