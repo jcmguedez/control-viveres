@@ -154,30 +154,33 @@
         <input type="hidden" id="editId">
         <input type="text" id="nombre" placeholder="Nombre del producto" class="search-input">
         
-        <div class="input-row" style="display:flex; gap:10px; margin-bottom:10px; align-items: flex-end;">
-            <div style="flex:2;">
-                <label>Costo de Compra (por Unidad/Kg)</label>
-                <div style="display:flex; gap:5px;">
-                    <input type="number" id="costo" placeholder="0.00" step="0.01" oninput="calcularCostoDual()">
-                    <select id="monedaCosto" style="width:70px; padding:10px;" onchange="calcularCostoDual()">
-                        <option value="BS" selected>Bs</option>
-                        <option value="USD">$</option>
-                    </select>
-                </div>
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <div style="flex:1;">
+                <label>Costo Unitario</label>
+                <input type="number" id="costo" step="0.01" placeholder="0.00" oninput="calcularCostoDual()">
                 <div id="costoDual" class="costo-preview">Eqv: $ 0,00</div>
             </div>
             <div style="flex:1;">
-                <label>Beneficio %</label>
-                <input type="number" id="beneficio" value="30" placeholder="30">
+                <label>Moneda Costo</label>
+                <select id="monedaCosto" onchange="calcularCostoDual()">
+                    <option value="BS">Bolívares (Bs.)</option>
+                    <option value="USD">Dólares ($)</option>
+                </select>
             </div>
         </div>
 
-        <div class="input-row" style="display:flex; gap:10px; margin-bottom:15px;">
+        <div style="display:flex; gap:10px; margin-bottom:15px;">
+            <div style="flex:1;">
+                <label>% Beneficio</label>
+                <input type="number" id="beneficio" value="30">
+            </div>
             <div style="flex:1;">
                 <label>Unidad</label>
                 <select id="unidad">
                     <option value="UND">Unidad (UND)</option>
-                    <option value="KG">Kilogramo (KG)</option>
+                    <option value="KG">Kilogramos (KG)</option>
+                    <option value="LIT">Litros (LIT)</option>
+                    <option value="PAQ">Paquete (PAQ)</option>
                 </select>
             </div>
             <div style="flex:1;">
@@ -241,7 +244,7 @@
             <button class="btn-info" onclick="abrirModalCredito()">💳 DAR CRÉDITO</button>
         </div>
         <button class="btn-danger" onclick="limpiarCarrito()" style="width:100%; margin-top:10px;">🗑️ LIMPIAR CARRITO</button>
-        <h2>📝 Ventas de Hoy</h2>
+        <h2>📝 Ventas Registradas</h2>
         <div id="ventasHistorial" class="list-container"></div>
     </div>
 
@@ -272,13 +275,11 @@
             <div id="reporteFallas" style="font-size:0.85rem; margin-top:10px;"></div>
         </div>
         
-        <button class="btn-vender" onclick="cerrarDia()" style="width:100%; margin-bottom:10px;">🔒 CERRAR CAJA (ARCHIVAR)</button>
+        <button class="btn-vender" onclick="cerrarDia()" style="width:100%; margin-bottom:10px;">🔒 CERRAR CAJA DE HOY</button>
         <button class="btn-danger" onclick="cerrarMes()" style="width:100%; margin-bottom:20px;">📅 CIERRE MENSUAL</button>
 
         <h2>📂 Historial de Cierres</h2>
         <div id="historialCierres" class="list-container"></div>
-        
-        <button class="btn-info" onclick="descargarReporte()" style="width:100%; margin-top:10px;">📥 DESCARGAR CSV</button>
     </div>
 </div>
 
@@ -303,7 +304,19 @@
 <div id="modalCredito" class="modal">
     <div class="modal-content">
         <h3>💳 Registrar Crédito</h3>
-        <div class="input-group"><label>Nombre del Cliente:</label><input type="text" id="nombreCliente" placeholder="Ej: Juan Perez"></div>
+        <div class="input-group">
+            <label>Cédula del Cliente:</label>
+            <input type="text" id="cedulaCliente" placeholder="V-12345678" list="clientesSugeridos" onchange="buscarClientePorCedula(this.value)">
+            <datalist id="clientesSugeridos"></datalist>
+        </div>
+        <div class="input-group">
+            <label>Nombre Completo:</label>
+            <input type="text" id="nombreCliente" placeholder="Ej: Juan Perez">
+        </div>
+        <div class="input-group">
+            <label>Teléfono:</label>
+            <input type="tel" id="telefonoCliente" placeholder="0412-1234567">
+        </div>
         <div class="stats-box">
             <div class="stats-label">Monto a Deber:</div>
             <div class="stats-value" id="montoCredito">Bs. 0,00</div>
@@ -317,7 +330,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <script>
-    let items = [], ventas = [], creditos = [], carrito = [], cierres = [];
+    let items = [], ventas = [], creditos = [], carrito = [], cierres = [], clientes = [];
     let tasaDolar = 36.50, diaActual = new Date().toLocaleDateString('es-ES'), ivaPorcentaje = 16, stockMinimoGlobal = 5;
     let db = null, firebaseConnected = false, itemPendientePeso = null;
 
@@ -328,6 +341,7 @@
         ventas = JSON.parse(localStorage.getItem('v_ventas')) || [];
         creditos = JSON.parse(localStorage.getItem('v_creditos')) || [];
         cierres = JSON.parse(localStorage.getItem('v_cierres')) || [];
+        clientes = JSON.parse(localStorage.getItem('v_clientes')) || [];
         tasaDolar = parseFloat(localStorage.getItem('v_tasa')) || 36.50;
         ivaPorcentaje = parseFloat(localStorage.getItem('v_iva')) || 16;
         stockMinimoGlobal = parseFloat(localStorage.getItem('v_stock_min_global')) || 5;
@@ -372,6 +386,7 @@
             const data = snap.val();
             if(data) {
                 items = data.items || []; ventas = data.ventas || []; creditos = data.creditos || []; 
+                clientes = data.clientes || [];
                 cierres = data.cierres || []; tasaDolar = data.tasa || tasaDolar;
                 ivaPorcentaje = data.iva || ivaPorcentaje;
                 stockMinimoGlobal = data.stockMinGlobal || stockMinimoGlobal;
@@ -389,11 +404,12 @@
         localStorage.setItem('v_ventas', JSON.stringify(ventas));
         localStorage.setItem('v_creditos', JSON.stringify(creditos));
         localStorage.setItem('v_cierres', JSON.stringify(cierres));
+        localStorage.setItem('v_clientes', JSON.stringify(clientes));
         localStorage.setItem('v_tasa', tasaDolar);
         localStorage.setItem('v_iva', ivaPorcentaje);
         localStorage.setItem('v_stock_min_global', stockMinimoGlobal);
         if(firebaseConnected && db && navigator.onLine) {
-            db.ref('viveres_pro/data').set({ items, ventas, creditos, cierres, tasa: tasaDolar, iva: ivaPorcentaje, stockMinGlobal: stockMinimoGlobal });
+            db.ref('viveres_pro/data').set({ items, ventas, creditos, cierres, clientes, tasa: tasaDolar, iva: ivaPorcentaje, stockMinGlobal: stockMinimoGlobal });
         }
     }
 
@@ -448,15 +464,15 @@
         document.getElementById('beneficio').value = i.beneficio;
         document.getElementById('cantidad').value = i.cantidad;
         document.getElementById('unidad').value = i.unidad || 'UND';
-        document.getElementById('exentoIVA').checked = i.exento || false;
+        document.getElementById('exentoIVA').checked = i.exento;
         document.getElementById('stockMinimo').value = i.stockMin !== undefined ? i.stockMin : stockMinimoGlobal;
-        document.getElementById('btnGuardar').textContent = 'GUARDAR CAMBIOS';
+        document.getElementById('btnGuardar').textContent = 'ACTUALIZAR PRODUCTO';
         document.getElementById('btnCancelarEdit').style.display = 'block';
         calcularCostoDual();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function eliminarItem(id) { if(confirm('¿Eliminar?')) { items = items.filter(x => x.id != id); sync(); render(); } }
+    function eliminarItem(id) { if(confirm('¿Eliminar producto?')) { items = items.filter(i => i.id != id); sync(); render(); } }
+
     function limpiarForm() {
         document.getElementById('formTitle').textContent = '➕ Cargar Producto';
         document.getElementById('editId').value = '';
@@ -500,7 +516,10 @@
         document.getElementById('reporteFallas').innerHTML = fallas.length ? fallas.map(f => `<div>• ${f.nombre}: <b>${f.unidad === 'KG' ? f.cantidad.toFixed(3) : f.cantidad}</b> <span class="falla-badge ${f.cantidad==0?'agotado':'bajo'}">${f.cantidad==0?'AGOTADO':'BAJO'}</span></div>`).join('') : 'No hay fallas';
 
         renderCarrito();
+        // Mostrar ventas de hoy y de días anteriores que NO han sido cerradas
         const vHoy = ventas.filter(v => v.dia === diaActual);
+        const vPendientes = ventas.filter(v => v.dia !== diaActual);
+        
         let ing = 0, gan = 0, ivaRec = 0;
         vHoy.forEach(v => { 
             if(!v.anulada) { 
@@ -513,12 +532,58 @@
         document.getElementById('ivaRecaudado').textContent = 'Bs. ' + fM(ivaRec);
         document.getElementById('gananciaEstimada').textContent = 'Bs. ' + fM(gan);
         
-        document.getElementById('ventasHistorial').innerHTML = vHoy.reverse().map(v => `
+        const htmlVentasHoy = vHoy.slice().reverse().map(v => `
             <div class="item ${v.anulada ? 'anulada' : ''}">
-                <b>${v.producto}</b><br>Total: Bs. ${fM(v.total)} ${v.ivaMonto > 0 ? '(Inc. IVA)' : ''} (${v.hora})
+                <b>${v.producto}</b><br>Total: Bs. ${fM(v.total)} (${v.hora})
                 ${!v.anulada ? `<br><button class="btn-anular" onclick="anularVenta(${v.id})">ANULAR VENTA</button>` : '<b>[ANULADA]</b>'}
             </div>`).join('');
-        document.getElementById('listaCreditos').innerHTML = creditos.map((c, idx) => `<div class="item"><b>${c.cliente}</b>: Bs. ${fM(c.monto)}<br><small>${c.detalle}</small><br><button onclick="pagarCredito(${idx})" style="background:var(--primary); padding:5px; margin-top:5px; font-size:0.7rem;">PAGADO</button></div>`).join('') || 'Sin deudas';
+
+        const htmlVentasPendientes = vPendientes.length > 0 ? `
+            <div style="background:#fff3cd; padding:10px; border-radius:10px; margin-bottom:15px; border:1px solid #ffeeba;">
+                <h3 style="margin:0 0 10px 0; font-size:0.9rem; color:#856404;">⚠️ VENTAS PENDIENTES DE CIERRE</h3>
+                ${vPendientes.slice().reverse().map(v => `
+                    <div class="item ${v.anulada ? 'anulada' : ''}" style="background:white; margin-bottom:5px; border-left-color:#ffc107;">
+                        <small>${v.dia}</small> <b>${v.producto}</b><br>Total: Bs. ${fM(v.total)}
+                        ${!v.anulada ? `<br><button class="btn-anular" onclick="anularVenta(${v.id})">ANULAR VENTA</button>` : ''}
+                    </div>`).join('')}
+                <button class="btn-vender" onclick="cerrarDiasAnteriores()" style="width:100%; margin-top:5px; background:#ffc107; color:#000;">CERRAR DÍAS PENDIENTES</button>
+            </div>` : '';
+
+        document.getElementById('ventasHistorial').innerHTML = htmlVentasPendientes + (htmlVentasHoy || '<p style="text-align:center; color:#999;">No hay ventas hoy</p>');
+
+        // Agrupar créditos por cédula/cliente
+        const agrupados = {};
+        creditos.forEach((cr, idx) => {
+            const key = cr.cedula || cr.cliente;
+            if(!agrupados[key]) agrupados[key] = { nombre: cr.cliente, cedula: cr.cedula, total: 0, items: [] };
+            agrupados[key].total += cr.monto;
+            agrupados[key].items.push({ ...cr, idx });
+        });
+
+        let html = "";
+        for(let k in agrupados) {
+            const g = agrupados[k];
+            const cli = clientes.find(c => c.cedula === g.cedula);
+            html += `<div class="item" style="border-left-color:var(--danger);">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                    <div>
+                        <b>${g.nombre}</b> ${g.cedula ? '<br><small>V-'+g.cedula+'</small>' : ''}
+                        ${cli && cli.telefono ? '<br><small>📞 '+cli.telefono+'</small>' : ''}
+                    </div>
+                    <div style="text-align:right;">
+                        <span style="color:var(--danger); font-weight:bold;">Bs. ${fM(g.total)}</span>
+                        ${g.cedula ? `<br><button onclick="eliminarCliente('${g.cedula}')" style="background:none; color:var(--danger); border:none; padding:0; font-size:0.65rem; cursor:pointer;">Eliminar Cliente</button>` : ''}
+                    </div>
+                </div>
+                <div style="margin-top:10px; background:#fff; border-radius:5px; padding:5px;">
+                    ${g.items.map(it => `<div style="font-size:0.75rem; border-bottom:1px solid #eee; padding:3px 0; display:flex; justify-content:space-between;">
+                        <span>${it.fecha}: ${it.detalle}</span>
+                        <button onclick="pagarCredito(${it.idx})" style="background:var(--primary); color:white; border:none; padding:2px 5px; border-radius:3px; font-size:0.6rem;">PAGAR</button>
+                    </div>`).join('')}
+                </div>
+            </div>`;
+        }
+        document.getElementById('listaCreditos').innerHTML = html || 'Sin deudas';
         document.getElementById('historialCierres').innerHTML = cierres.slice().reverse().map(c => `<div class="item cierre-item"><b>${c.tipo}: ${c.fecha}</b><br>Ventas: Bs. ${fM(c.ingresos)}<br>IVA: Bs. ${fM(c.iva || 0)}<br>Ganancia: Bs. ${fM(c.ganancia)}</div>`).join('') || 'No hay cierres';
     }
 
@@ -578,7 +643,8 @@
 
     function renderCarrito() {
         const c = document.getElementById('carritoContainer');
-        document.getElementById('ivaLabel').textContent = ivaPorcentaje;
+        const ivaLabel = document.getElementById('ivaLabel');
+        if(ivaLabel) ivaLabel.textContent = ivaPorcentaje;
         if(!carrito.length) { 
             document.getElementById('totalCarrito').textContent = 'Bs. 0,00'; 
             document.getElementById('subtotalGravable').textContent = 'Bs. 0,00';
@@ -613,9 +679,38 @@
         document.getElementById('totalCarritoUSD').textContent = '$ ' + fM(total / tasaDolar);
     }
 
+    function abrirModalCredito() { 
+        if(carrito.length) { 
+            document.getElementById('montoCredito').textContent = document.getElementById('totalCarrito').textContent; 
+            document.getElementById('modalCredito').classList.add('active'); 
+            // Cargar sugerencias
+            const dl = document.getElementById('clientesSugeridos');
+            if(dl) dl.innerHTML = clientes.map(c => `<option value="${c.cedula}">${c.nombre}</option>`).join('');
+        } 
+    }
+    
+    function buscarClientePorCedula(cedula) {
+        const c = clientes.find(x => x.cedula === cedula);
+        if(c) {
+            document.getElementById('nombreCliente').value = c.nombre;
+            document.getElementById('telefonoCliente').value = c.telefono || '';
+        }
+    }
+
     function finalizarVenta(esCredito) {
-        const cliente = document.getElementById('nombreCliente').value.trim();
-        if(esCredito && !cliente) return alert('Escribe el nombre');
+        let clienteNombre = "", clienteCedula = "", clienteTelefono = "";
+        if(esCredito) {
+            clienteNombre = document.getElementById('nombreCliente').value.trim();
+            clienteCedula = document.getElementById('cedulaCliente').value.trim();
+            clienteTelefono = document.getElementById('telefonoCliente').value.trim();
+            if(!clienteNombre || !clienteCedula) return alert('Nombre y Cédula son obligatorios');
+            
+            // Guardar/Actualizar cliente
+            const idx = clientes.findIndex(c => c.cedula === clienteCedula);
+            if(idx === -1) clientes.push({ nombre: clienteNombre, cedula: clienteCedula, telefono: clienteTelefono });
+            else { clientes[idx].nombre = clienteNombre; clientes[idx].telefono = clienteTelefono; }
+        }
+        
         let subGravV = 0, subExentoV = 0, ganV = 0, det = "";
         const conIVA = document.getElementById('aplicarIVA').checked;
         
@@ -644,7 +739,11 @@
             anulada: false 
         });
         
-        if(esCredito) creditos.push({ cliente, monto: totalV, detalle: det.slice(0,-2), fecha: diaActual });
+        if(esCredito) creditos.push({ cliente: clienteNombre, cedula: clienteCedula, monto: totalV, detalle: det.slice(0,-2), fecha: diaActual });
+        // Limpiar campos modal
+        document.getElementById('nombreCliente').value = '';
+        document.getElementById('cedulaCliente').value = '';
+        document.getElementById('telefonoCliente').value = '';
         carrito = []; cerrarModalCredito(); sync(); render(); alert('Venta guardada');
     }
 
@@ -670,13 +769,29 @@
 
     function cerrarDia() {
         const vHoy = ventas.filter(v => v.dia === diaActual && !v.anulada);
-        if(!vHoy.length) return alert('No hay ventas hoy');
-        if(confirm('¿Cerrar caja? Se guardarán los totales de ventas, IVA y ganancias.')) {
+        if(!vHoy.length) return alert('No hay ventas hoy para cerrar');
+        if(confirm('¿Cerrar caja de HOY ('+diaActual+')?')) {
             let ing = 0, gan = 0, iva = 0;
             vHoy.forEach(v => { ing += v.total; gan += v.ganancia; iva += (v.ivaMonto || 0); });
             cierres.push({ fecha: diaActual, ingresos: ing, iva: iva, ganancia: gan, tipo: 'DIARIO' });
             ventas = ventas.filter(v => v.dia !== diaActual);
-            sync(); render(); alert('Caja cerrada y archivada.');
+            sync(); render(); alert('Caja de hoy cerrada.');
+        }
+    }
+
+    function cerrarDiasAnteriores() {
+        const vPendientes = ventas.filter(v => v.dia !== diaActual && !v.anulada);
+        if(!vPendientes.length) return;
+        const dias = [...new Set(vPendientes.map(v => v.dia))];
+        if(confirm('¿Cerrar caja de los días pendientes: ' + dias.join(', ') + '?')) {
+            dias.forEach(d => {
+                const vDia = vPendientes.filter(v => v.dia === d);
+                let ing = 0, gan = 0, iva = 0;
+                vDia.forEach(v => { ing += v.total; gan += v.ganancia; iva += (v.ivaMonto || 0); });
+                cierres.push({ fecha: d, ingresos: ing, iva: iva, ganancia: gan, tipo: 'DIARIO' });
+            });
+            ventas = ventas.filter(v => v.dia === diaActual);
+            sync(); render(); alert('Días anteriores cerrados y archivados.');
         }
     }
 
@@ -692,9 +807,16 @@
         }
     }
 
-    function abrirModalCredito() { if(carrito.length) { document.getElementById('montoCredito').textContent = document.getElementById('totalCarrito').textContent; document.getElementById('modalCredito').classList.add('active'); } }
     function cerrarModalCredito() { document.getElementById('modalCredito').classList.remove('active'); }
-    function pagarCredito(idx) { if(confirm('¿Pagado?')) { creditos.splice(idx,1); sync(); render(); } }
+    function pagarCredito(idx) { if(confirm('¿Marcar como pagado?')) { creditos.splice(idx,1); sync(); render(); } }
+    
+    function eliminarCliente(cedula) {
+        if(confirm('¿Eliminar cliente y sus datos de contacto? (No elimina deudas existentes)')) {
+            clientes = clientes.filter(c => c.cedula !== cedula);
+            sync(); render();
+        }
+    }
+    
     function limpiarCarrito() { if(confirm('¿Vaciar?')) { carrito = []; renderCarrito(); } }
     function toggleConfig() { const s = document.getElementById('configSection'); s.style.display = s.style.display === 'none' ? 'block' : 'none'; }
     function generarQR() { const q = document.getElementById('qrcode'); q.innerHTML = ''; new QRCode(q, { text: window.location.href, width: 150, height: 150 }); }
